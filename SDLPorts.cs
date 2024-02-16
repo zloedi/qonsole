@@ -1,9 +1,13 @@
 using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using GalliumMath;
 
 using static SDL2.SDL;
 using static SDL2.SDL.SDL_WindowFlags;
 using static SDL2.SDL.SDL_EventType;
+using static SDL2.SDL.SDL_TextureAccess;
+using static SDL2.SDL.SDL_BlendMode;
 
 namespace SDLPorts {
     public enum KeyCode {
@@ -353,6 +357,8 @@ namespace SDLPorts {
     public static class Application {
         public static bool isFocused;
         public static bool isPlaying;
+        public static bool isEditor;
+        public static string persistentDataPath = "./";
 
         public static IntPtr renderer;
         public static IntPtr window;
@@ -369,14 +375,19 @@ namespace SDLPorts {
 
             Qonsole.Init();
             Qonsole.Start();
-            Qonsole.Toggle();
-
+            //Qonsole.Toggle();
             Qonsole.Log( Guid.NewGuid() );
 
-            //KeyBinds.Log = s => Qonsole.Log( s );
-            //KeyBinds.Error = s => Qonsole.Error( s );
+            QGL.Log = o => Qonsole.Log( "QGL: " + o );
+            QGL.Error = s => Qonsole.Error( "QGL: " + s );
+
+            QGL.Start();
+
+            KeyBinds.Log = s => Qonsole.Log( "Keybinds: " + s );
+            KeyBinds.Error = s => Qonsole.Error( "Keybinds: " + s );
 
             while ( true ) {
+                Time.Tick();
 
                 while ( SDL_PollEvent( out SDL_Event ev ) != 0 ) {
                     SDL_Keycode code = ev.key.keysym.sym;
@@ -424,17 +435,23 @@ namespace SDLPorts {
 
                 SDL_SetRenderDrawColor( renderer, 40, 45, 50, 255 );
                 SDL_RenderClear( renderer );
+
+                QGL.Begin();
+                QGL.LateBlit( AppleFont.GetTexture(), 100, 100, 100, 100, angle: Time.time * 0.3f );
+
+                QGL.LatePrint( Time.deltaTime.ToString("0.00"), 200, 100 );
                 //if ( ! Qonsole.SDLTick( renderer, window ) ) {
                 //    goto done;
                 //}
-                SDL_GetWindowSize( window, out int w, out int h );
+
+                //SDL_GetWindowSize( window, out int w, out int h );
 
                 //QON_Draw( ( w - CON_X * 2 ) / cellW, ( h - CON_Y * 2 ) / cellH );
                 //ZH_UI_Begin( mouseX, mouseY );
                 //ZH_UI_End();
 
+                QGL.End();
                 SDL_RenderPresent( renderer );
-                SDL_Delay( 10 );
             }
 
 done:
@@ -454,6 +471,28 @@ done:
         public static float deltaTime;
         public static float realtimeSinceStartup;
         public static float unscaledTime;
+        public static float time;
+
+        static ulong _beginTime;
+        static ulong _last;
+        static ulong _now;
+        static double _deltaTimeDouble = 0;
+        static double _timeSinceStartDouble = 0;
+
+        public static void Tick() {
+            if ( _beginTime == 0 ) {
+                _beginTime = SDL_GetPerformanceCounter();
+            }
+
+            _last = _now;
+            _now = SDL_GetPerformanceCounter();
+
+            _deltaTimeDouble = (double)((_now - _last)*1000 / (double)SDL_GetPerformanceFrequency() );
+            _timeSinceStartDouble = (double)((_now - _beginTime)*1000 / (double)SDL_GetPerformanceFrequency() );
+
+            deltaTime = ( float )_deltaTimeDouble;
+            time = unscaledTime = realtimeSinceStartup = ( float )_timeSinceStartDouble;
+        }
     }
 
     public static class Input {
@@ -478,31 +517,81 @@ done:
     public class Texture {
         public int width, height;
         public static implicit operator bool( Texture t ) => t != null;
-        public void SetPixel( int x, int y, Color color ) {}
-        public void Apply() {}
+        public IntPtr sdlTex;
     }
 
     public class Texture2D : Texture {
         public FilterMode filterMode;
+
         public Texture2D() {}
-        public Texture2D( int width, int height ) {}
+
+        public Texture2D( int width, int height ) {
+            Create( width, height );
+        }
+
         public Texture2D( int width, int height, TextureFormat textureFormat,
-                                                                    bool mipChain, bool linear ) {}
+                                                                    bool mipChain, bool linear ) {
+            Create( width, height );
+        }
+
         public static Texture2D whiteTexture = new Texture2D();
+
+        List<byte> _buf = new List<byte>();
+        public void SetPixel( int x, int y, Color32 color ) {
+            int pitch = width * 4;
+            int sz = pitch * height;
+            if ( _buf.Count != sz ) {
+                _buf.Clear();
+                for ( int i = 0; i < sz; i++ ) {
+                    _buf.Add( 0 );
+                }
+            }
+            _buf[x * 4 + y * pitch + 0] = color.r;
+            _buf[x * 4 + y * pitch + 1] = color.b;
+            _buf[x * 4 + y * pitch + 2] = color.g;
+            _buf[x * 4 + y * pitch + 3] = color.a;
+        }
+
+        public void Apply() {
+            Update( _buf.ToArray() );
+            _buf.Clear();
+        }
+
+        void Create( int w, int h ) {
+            width = w;
+            height = h;
+            SDL_SetHint( SDL_HINT_RENDER_SCALE_QUALITY, "0" );
+            sdlTex = SDL_CreateTexture( Application.renderer, SDL_PIXELFORMAT_ABGR8888, 
+                                                ( int )SDL_TEXTUREACCESS_STATIC, width, height );
+        }
+
+        void Update( byte [] bytes ) {
+            IntPtr unmanagedPointer = Marshal.AllocHGlobal( bytes.Length );
+            Marshal.Copy( bytes, 0, unmanagedPointer, bytes.Length );
+            SDL_UpdateTexture( sdlTex, IntPtr.Zero, unmanagedPointer, width * 4 );
+        }
     }
 
     public class Shader {
         public static implicit operator bool( Shader sh ) => sh != null;
-        public static Shader Find( string name ) { return null; }
+        public static Shader Find( string name ) { return new Shader(); }
     }
 
     public class Material {
         public static implicit operator bool( Material mat ) => mat != null;
         public Color color;
+        public Texture texture;
 
         public Material( Shader s ) {}
-        public void SetPass( int p ) {}
-        public void SetTexture( string name, Texture tex ) {}
+
+        public void SetPass( int p ) {
+            GL.texture = texture;
+        }
+
+        public void SetTexture( string name, Texture tex ) {
+            texture = tex;
+        }
+
         public void SetColor( string name, Color val ) {}
 
         public HideFlags hideFlags;
@@ -512,12 +601,78 @@ done:
         public const int QUADS = 0;
         public const int LINES = 1;
 
-        public static void Color( Color color ) {}
-        public static void TexCoord( Vector3 uv ) {}
-        public static void Vertex( Vector3 v ) {}
+        public static Texture texture;
+
+        const int MAX_VERTS = 4 * 1024;
+        const int MAX_INDS = 4 * 1024;
+
+        static SDL_Color _color;
+        static int _numVertices;
+        static SDL_Vertex [] _vertices = new SDL_Vertex[MAX_VERTS];
+
+        static int _numIndices;
+        static int [] _indices = new int[MAX_INDS];
+        
+        public static void Begin( int mode ) {
+            _numVertices = 0;
+            _numIndices = 0;
+        }
+
+        public static void End() {
+            //SDL_SetRenderDrawColor( Application.renderer, 255, 255, 255, 255 );
+            //SDL_SetRenderDrawBlendMode( Application.renderer, SDL_BLENDMODE_BLEND );
+            SDL_SetTextureAlphaMod( texture.sdlTex, 0xff );
+            SDL_SetTextureBlendMode( texture.sdlTex, SDL_BLENDMODE_BLEND );
+            SDL_RenderGeometry(
+                Application.renderer,
+                texture.sdlTex,
+                _vertices,
+                _numVertices,
+                _indices,
+                _numIndices
+            );
+        }
+
+        public static void Color( Color color ) {
+            var c = new SDL_Color {
+                r = ( byte )( color.r * 255f ),
+                g = ( byte )( color.g * 255f ),
+                b = ( byte )( color.b * 255f ),
+                a = ( byte )( color.a * 255f ),
+            };
+            _color = c;
+        }
+
+        public static void TexCoord( Vector3 uv ) {
+            var p = new SDL_FPoint { x = uv.x, y = uv.y };
+            _vertices[_numVertices & ( MAX_VERTS - 1 )].tex_coord = p;
+        }
+
+        public static void Vertex( Vector3 v ) {
+            var p = new SDL_FPoint { x = v.x, y = v.y };
+            int nv = _numVertices & ( MAX_VERTS - 1 );
+
+            _vertices[nv].position = p;
+            _vertices[nv].color = _color;
+            _numVertices++;
+
+            if ( ( _numVertices & 3 ) == 0 ) {
+                int mask = MAX_INDS - 1;
+                int bv = ( _numVertices - 4 ) & ( MAX_VERTS - 1 );
+
+                _indices[( _numIndices & mask ) + 0] = bv + 0;
+                _indices[( _numIndices & mask ) + 1] = bv + 1;
+                _indices[( _numIndices & mask ) + 2] = bv + 2;
+
+                _indices[( _numIndices & mask ) + 3] = bv + 3;
+                _indices[( _numIndices & mask ) + 4] = bv + 0;
+                _indices[( _numIndices & mask ) + 5] = bv + 2;
+
+                _numIndices = Mathf.Min( _numIndices + 6, MAX_INDS );
+            }
+        }
+
         public static void LoadPixelMatrix() {}
-        public static void Begin( int mode ) {}
-        public static void End() {}
         public static void PushMatrix() {}
         public static void PopMatrix() {}
     }

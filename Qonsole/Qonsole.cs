@@ -139,8 +139,8 @@ public const string featuresDescription = @"Features:
 . Autocomplete the token under the cursor, not only at the start of prompt.
 ";
 
-[Description( "Part of the screen height occupied by the 'overlay' fading-out lines. If set to zero, Qonsole won't show anything unless Active" )]
-static int QonOverlayPercent_kvar = 0;
+//[Description( "Part of the screen height occupied by the 'overlay' fading-out lines. If set to zero, Qonsole won't show anything unless Active" )]
+//static int QonOverlayPercent_kvar = 0;
 [Description( "Show the Qonsole output to the system (unity) log too." )]
 static bool QonPrintToSystemLog_kvar = true;
 [Description( "Console character size." )]
@@ -174,22 +174,17 @@ public static Action onDone_f = () => {};
 public static Action onGUI_f = () => {};
 
 #if HAS_UNITY
-// we hope it is the main thread?
-public static readonly int ThreadID = System.Threading.Thread.CurrentThread.ManagedThreadId;
 // the Unity editor (QGL) repaint callback
 public static Action<Camera> onEditorRepaint_f = c => {};
+#endif
+
+// we hope it is the main thread?
+public static readonly int ThreadID = System.Threading.Thread.CurrentThread.ManagedThreadId;
 static bool _isEditor => Application.isEditor;
 static string _dataPath => Application.persistentDataPath;
 static float _textDx => QGL.TextDx;
 static float _textDy => QGL.TextDy;
 static int _cursorChar => QGL.GetCursorChar();
-#else
-static bool _isEditor = false;
-static string _dataPath = "./";
-static int _textDx = AppleFont.APPLEIIF_CW + 1;
-static int _textDy = AppleFont.APPLEIIF_CH + 3;
-static int _cursorChar => 127;
-#endif
 
 static int _totalTime;
 static string _historyPath;
@@ -200,8 +195,8 @@ static float _overlayAlpha = 1;
 // the colorization stack for nested tags
 static List<Color> _drawCharColorStack = new List<Color>(){ Color.white };
 static bool _oneShot;
-static string [] _history;
-static int _historyItem;
+//static string [] _history;
+//static int _historyItem;
 
 #if QONSOLE_QUI
 static Vector2 _mousePosition;
@@ -696,7 +691,7 @@ static void EraseCommand() {
 }
 
 static void OnEnter() {
-    _history = null;
+    //_history = null;
     string cmdClean, cmdRaw;
     QON_GetCommandEx( out cmdClean, out cmdRaw );
     EraseCommand();

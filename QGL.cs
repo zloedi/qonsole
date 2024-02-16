@@ -12,6 +12,8 @@ using GalliumMath;
 
 public static class QGL {
 
+public static Action<object> Log = o => {};
+public static Action<string> Error = s => {};
 
 static Texture2D _texWhite = Texture2D.whiteTexture;
 static Material _material;
@@ -98,40 +100,40 @@ static void ImageQuad( int texW, int texH, Vector2 srcPos, Vector2 srcSize,
     }
 }
 
-static void BlitSlow( Texture texture, Vector2 srcPos, Vector2 srcSize, Vector3 dstPos,
-                                Vector3 dstSize, Color? color = null, Material material = null) { 
-    Color col = color == null ? Color.white : color.Value;
-    texture = texture ? texture : _texWhite;
-    float y = _invertedY ? ScreenHeight() - dstPos.y : dstPos.y;
-    float dy = _invertedY ? y - dstSize.y : y + dstSize.y;
-    float tw = texture.width > 0 ? texture.width : 1;
-    float th = texture.height > 0 ? texture.height : 1;
-    float u0 = srcPos.x / tw;
-    float u1 = u0 + srcSize.x / tw;
-    float v0 = 1 - srcPos.y / th;
-    float v1 = v0 - srcSize.y / th;
-
-    GL.PushMatrix();
-    if ( material != null ) {
-        material.SetPass(0);
-        material.SetColor("_Color", color.Value);
-    } else {
-        SetTexture( texture );
-    }
-    GL.LoadPixelMatrix();
-    GL.Begin( GL.QUADS );
-    GL.Color( col );
-    GL.TexCoord( new Vector3( u0, v0, 0 ) );
-    GL.Vertex( new Vector3( dstPos.x, y, 0 ) );
-    GL.TexCoord( new Vector3( u1, v0, 0 ) );
-    GL.Vertex( new Vector3( dstPos.x + dstSize.x, y, 0 ) );
-    GL.TexCoord( new Vector3( u1, v1, 0 ) );
-    GL.Vertex( new Vector3( dstPos.x + dstSize.x, dy, 0 ) );
-    GL.TexCoord( new Vector3( u0, v1, 0 ) );
-    GL.Vertex( new Vector3( dstPos.x, dy, 0 ) );
-    GL.End();
-    GL.PopMatrix();
-}
+//static void BlitSlow( Texture texture, Vector2 srcPos, Vector2 srcSize, Vector3 dstPos,
+//                                Vector3 dstSize, Color? color = null, Material material = null) { 
+//    Color col = color == null ? Color.white : color.Value;
+//    texture = texture ? texture : _texWhite;
+//    float y = _invertedY ? ScreenHeight() - dstPos.y : dstPos.y;
+//    float dy = _invertedY ? y - dstSize.y : y + dstSize.y;
+//    float tw = texture.width > 0 ? texture.width : 1;
+//    float th = texture.height > 0 ? texture.height : 1;
+//    float u0 = srcPos.x / tw;
+//    float u1 = u0 + srcSize.x / tw;
+//    float v0 = 1 - srcPos.y / th;
+//    float v1 = v0 - srcSize.y / th;
+//
+//    GL.PushMatrix();
+//    if ( material != null ) {
+//        material.SetPass(0);
+//        material.SetColor("_Color", color.Value);
+//    } else {
+//        SetTexture( texture );
+//    }
+//    GL.LoadPixelMatrix();
+//    GL.Begin( GL.QUADS );
+//    GL.Color( col );
+//    GL.TexCoord( new Vector3( u0, v0, 0 ) );
+//    GL.Vertex( new Vector3( dstPos.x, y, 0 ) );
+//    GL.TexCoord( new Vector3( u1, v0, 0 ) );
+//    GL.Vertex( new Vector3( dstPos.x + dstSize.x, y, 0 ) );
+//    GL.TexCoord( new Vector3( u1, v1, 0 ) );
+//    GL.Vertex( new Vector3( dstPos.x + dstSize.x, dy, 0 ) );
+//    GL.TexCoord( new Vector3( u0, v1, 0 ) );
+//    GL.Vertex( new Vector3( dstPos.x, dy, 0 ) );
+//    GL.End();
+//    GL.PopMatrix();
+//}
 
 static void DrawText( string s, float x, float y ) {
     for ( int i = 0; i < s.Length; i++ ) {
@@ -204,7 +206,7 @@ public static bool Start( bool invertedY = false ) {
         SetContext( null, invertedY: invertedY );
         return true;
     }
-    //Debug.LogError( "Can't find GL shader" );
+    Error( "Can't find GL shader" );
     return false;
 }
 
@@ -833,7 +835,7 @@ public static void End( bool skipLateFlush = false ) {
         if ( _material ) {
             FlushLates();
         } else {
-            //Debug.LogError( "Can't find GL material. Should call QGL.Start()" );
+            Error( "Can't find GL material. Should call QGL.Start()" );
         }
     }
     GL.PopMatrix();
