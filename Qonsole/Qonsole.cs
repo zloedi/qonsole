@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 
-#if SDL || HAS_UNITY || true
+#if HAS_UNITY || true
 
 //#define QONSOLE_BOOTSTRAP // if this is defined, the console will try to bootstrap itself
 //#define QONSOLE_BOOTSTRAP_EDITOR // if this is defined, the console will try to bootstrap itself in the editor
@@ -17,16 +17,14 @@ using System.IO;
 #if HAS_UNITY
 using UnityEngine;
 using QObject = UnityEngine.Object;
-#elif SDL
-using System.Runtime.InteropServices;
-using static AppleFont;
-using static SDL2.SDL;
-using static SDL2.SDL.SDL_BlendMode;
-using static SDL2.SDL.SDL_EventType;
-using static SDL2.SDL.SDL_Keycode;
-using GalliumMath;
-using QObject = System.Object;
 #else
+using static SDL2.SDL;
+using static SDL2.SDL.SDL_WindowFlags;
+using static SDL2.SDL.SDL_EventType;
+using static SDL2.SDL.SDL_TextureAccess;
+using static SDL2.SDL.SDL_BlendMode;
+using static SDL2.SDL.SDL_Keycode;
+using System.Runtime.InteropServices;
 using GalliumMath;
 using SDLPorts;
 using QObject = System.Object;
@@ -97,6 +95,7 @@ public static class Qonsole {
 
 
 #if HAS_UNITY && QONSOLE_BOOTSTRAP
+
 [RuntimeInitializeOnLoadMethod]
 static void CreateBootstrapObject() {
     QonsoleBootstrap[] components = GameObject.FindObjectsOfType<QonsoleBootstrap>();
@@ -108,6 +107,10 @@ static void CreateBootstrapObject() {
         Debug.Log( "Already have QonsoleBootstrap" );
     }
 }
+
+// the Unity editor (QGL) repaint callback
+public static Action<Camera> onEditorRepaint_f = c => {};
+
 #endif
 
 public static bool Active;
@@ -139,8 +142,8 @@ public const string featuresDescription = @"Features:
 . Autocomplete the token under the cursor, not only at the start of prompt.
 ";
 
-//[Description( "Part of the screen height occupied by the 'overlay' fading-out lines. If set to zero, Qonsole won't show anything unless Active" )]
-//static int QonOverlayPercent_kvar = 0;
+[Description( "Part of the screen height occupied by the 'overlay' fading-out lines. If set to zero, Qonsole won't show anything unless Active" )]
+static int QonOverlayPercent_kvar = 0;
 [Description( "Show the Qonsole output to the system (unity) log too." )]
 static bool QonPrintToSystemLog_kvar = true;
 [Description( "Console character size." )]
@@ -172,11 +175,6 @@ public static Action onStart_f = () => {};
 public static Action onDone_f = () => {};
 // OBSOLETE, USE COMMANDS INSTEAD: called inside OnGUI if QONSOLE_BOOTSTRAP is defined
 public static Action onGUI_f = () => {};
-
-#if HAS_UNITY
-// the Unity editor (QGL) repaint callback
-public static Action<Camera> onEditorRepaint_f = c => {};
-#endif
 
 // we hope it is the main thread?
 public static readonly int ThreadID = System.Threading.Thread.CurrentThread.ManagedThreadId;
@@ -233,6 +231,50 @@ static Action OverlayGetFade() {
         float ts = 2f * ( solidTime - t );
         _overlayAlpha = t < solidTime ? 1 : Mathf.Max( 0, 1 - ts * ts );
     };
+}
+
+static void RenderGL( bool skip = false ) {
+    void drawChar( int c, int x, int y, bool isCursor, object param ) { 
+        if ( DrawCharBegin( ref c, x, y, isCursor, out Color color, out Vector2 screenPos ) ) {
+            QGL.DrawScreenCharWithOutline( c, screenPos.x, screenPos.y, color, QonScale );
+        }
+    }
+
+    RenderBegin();
+
+    QGL.Begin();
+
+    QGL.FlushLates();
+
+    if ( ! skip ) {
+        GetSize( out int conW, out int conH );
+
+        QGL.LatePrint( conW + "," + conH, 300, 100 );
+
+        if ( Active ) {
+            QGL.SetWhiteTexture();
+#if false
+            GL.Begin( GL.QUADS );
+            GL.Color( new Color( 0, 0, 0, QonAlpha_kvar ) );
+            QGL.DrawSolidQuad( new Vector2( 0, 0 ),
+                                                new Vector2( Screen.width, QGL.ScreenHeight() ) );
+            GL.End();
+#endif
+        } else {
+            int percent = Mathf.Clamp( QonOverlayPercent_kvar, 0, 100 );
+            conH = conH * percent / 100;
+        }
+
+        QGL.SetFontTexture();
+        GL.Begin( GL.QUADS );
+        QON_DrawChar = drawChar;
+        QON_DrawEx( conW, conH, ! Active, 0 );
+        GL.End();
+    }
+
+    QGL.End( skipLateFlush: true );
+
+    RenderEnd();
 }
 
 static void RenderBegin() {
@@ -628,51 +670,7 @@ static void PrintToSystemLog( string s, QObject o ) {
     Application.SetStackTraceLogType( LogType.Log, oldType );
 }
 
-static void RenderGL( bool skip = false ) {
-    void drawChar( int c, int x, int y, bool isCursor, object param ) { 
-        if ( DrawCharBegin( ref c, x, y, isCursor, out Color color, out Vector2 screenPos ) ) {
-            QGL.DrawScreenCharWithOutline( c, screenPos.x, screenPos.y, color, QonScale );
-        }
-    }
-
-    RenderBegin();
-
-    QGL.Begin();
-
-    QGL.FlushLates();
-
-    //QGL.LateBlitFlush();
-    //QGL.LatePrintFlush();
-    //QGL.LateDrawLineFlush();
-
-    if ( ! skip ) {
-        GetSize( out int conW, out int conH );
-
-        if ( Active ) {
-            QGL.SetWhiteTexture();
-            GL.Begin( GL.QUADS );
-            GL.Color( new Color( 0, 0, 0, QonAlpha_kvar ) );
-            QGL.DrawSolidQuad( new Vector2( 0, 0 ),
-                                                new Vector2( Screen.width, QGL.ScreenHeight() ) );
-            GL.End();
-        } else {
-            int percent = Mathf.Clamp( QonOverlayPercent_kvar, 0, 100 );
-            conH = conH * percent / 100;
-        }
-
-        QGL.SetFontTexture();
-        GL.Begin( GL.QUADS );
-        QON_DrawChar = drawChar;
-        QON_DrawEx( conW, conH, ! Active, 0 );
-        GL.End();
-    }
-
-    QGL.End( skipLateFlush: true );
-
-    RenderEnd();
-}
-
-#else // if not HAS_UNITY
+#else // HAS_UNITY
 
 static void PrintToSystemLog( string s, QObject o ) {
     if ( QonPrintToSystemLog_kvar ) {
@@ -786,7 +784,7 @@ public static void Error( string s, QObject o = null ) {
     } );
     QON_PrintAndAct( "\n", (x,y)=>DrawCharColorPop() );
 
-    PrintToSystemLog( serr, o );
+    PrintToSystemLog( serr + '\n', o );
 
     InternalCommand( "qonsole_on_error", s );
 }
@@ -897,35 +895,12 @@ public static void GetSize( out int conW, out int conH ) {
     conH = maxH / cH;
 }
 
-#if SDL
+#if ! HAS_UNITY
 
-static IntPtr x_renderer;
-static IntPtr x_window;
+public static void SDLTick() {
+    RenderGL();
 
-static void SDLDrawChar( int c, int x, int y, int w, int h, Color32 col ) {
-    int idx = c & ( APPLEIIF_ROWS * APPLEIIF_CLMS - 1 );
-    var tex = AppleFont.GetTexture( x_renderer );
-    SDL_SetTextureAlphaMod( tex, 0xff );
-    SDL_SetTextureBlendMode( tex, SDL_BLENDMODE_BLEND );
-    SDL_Rect src = new SDL_Rect {
-        x = idx % APPLEIIF_CLMS * APPLEIIF_CW,
-        y = idx / APPLEIIF_CLMS * APPLEIIF_CH,
-        w = APPLEIIF_CW,
-        h = APPLEIIF_CH,
-    };
-    SDL_SetTextureColorMod( tex, col.r, col.g, col.b );
-    SDL_Rect dst = new SDL_Rect { x = x, y = y, w = w, h = h };
-    SDL_RenderCopy( x_renderer, tex, ref src, ref dst );
-}
-
-public static void SDLDone() {
-    OnApplicationQuit();
-}
-
-public static bool SDLTick( IntPtr renderer, IntPtr window, bool skipRender = false ) {
-    x_renderer = renderer;
-    x_window = window;
-
+#if false
     while ( SDL_PollEvent( out SDL_Event ev ) != 0 ) {
         SDL_Keycode code = ev.key.keysym.sym;
         switch( ev.type ) {
@@ -953,13 +928,13 @@ public static bool SDLTick( IntPtr renderer, IntPtr window, bool skipRender = fa
                     case SDLK_BACKQUOTE: Toggle();               break;
 
                     case SDLK_BACKSPACE: {
-                        _history = null;
+                        //_history = null;
                         QON_Backspace( 1 );
                         break;
                     }
 
                     case SDLK_DELETE: {
-                        _history = null;
+                        //_history = null;
                         QON_Delete( 1 );
                         break;
                     }
@@ -993,63 +968,16 @@ public static bool SDLTick( IntPtr renderer, IntPtr window, bool skipRender = fa
                 break;
 
             case SDL_QUIT:
-                return false;
+                return;
 
             default:
                 break;
         }
     }
-
-    if ( ! Started ) {
-        return true;
-    }
-
-    Update();
-
-    void drawChar( int c, int x, int y, bool isCursor, object param ) { 
-        if ( DrawCharBegin( ref c, x, y, isCursor, out Color color, out Vector2 screenPos ) ) {
-            int cw = ( int )( APPLEIIF_CW * QonScale );
-            int ch = ( int )( APPLEIIF_CH * QonScale );
-            int cx = ( int )screenPos.x;
-            int cy = ( int )screenPos.y;
-
-            int off = ( int )QonScale;
-            SDLDrawChar( c, cx + off, cy + off, cw, ch, Color.black );
-            
-            SDLDrawChar( c, cx, cy, cw, ch, color );
-        }
-    }
-
-    RenderBegin();
-
-    SDL_GetWindowSize( x_window, out int screenW, out int screenH );
-
-    int cW = ( int )( _textDx * QonScale );
-    int cH = ( int )( _textDy * QonScale );
-    int conW = screenW / cW;
-    int conH = screenH / cH;
-
-    if ( Active ) {
-        SDL_SetRenderDrawBlendMode( x_renderer, SDL_BLENDMODE_BLEND );
-        SDL_SetRenderDrawColor( x_renderer, 0, 0, 0, ( byte )( QonAlpha_kvar * 255f ) );
-        SDL_Rect bgrRect = new SDL_Rect {
-            x = 0, y = 0, w = screenW, h = screenH
-        };
-        SDL_RenderFillRect( x_renderer, ref bgrRect );
-    } else {
-        int percent = Mathf.Clamp( QonOverlayPercent_kvar, 0, 100 );
-        conH = conH * percent / 100;
-    }
-
-    QON_DrawChar = drawChar;
-    QON_DrawEx( conW, conH, ! Active, 0 );
-
-    RenderEnd();
-
-    return true;
+#endif
 }
 
-#endif // SDL
+#endif // ! HAS_UNITY
 
 
 } // class Qonsole

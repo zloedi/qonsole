@@ -375,7 +375,7 @@ namespace SDLPorts {
 
             Qonsole.Init();
             Qonsole.Start();
-            //Qonsole.Toggle();
+            Qonsole.Toggle();
             Qonsole.Log( Guid.NewGuid() );
 
             QGL.Log = o => Qonsole.Log( "QGL: " + o );
@@ -387,6 +387,10 @@ namespace SDLPorts {
             KeyBinds.Error = s => Qonsole.Error( "Keybinds: " + s );
 
             while ( true ) {
+                SDL_GetWindowSize( window, out int w, out int h );
+                Screen.width = w;
+                Screen.height = h;
+
                 Time.Tick();
 
                 while ( SDL_PollEvent( out SDL_Event ev ) != 0 ) {
@@ -436,27 +440,26 @@ namespace SDLPorts {
                 SDL_SetRenderDrawColor( renderer, 40, 45, 50, 255 );
                 SDL_RenderClear( renderer );
 
-                QGL.Begin();
-                QGL.LateBlit( AppleFont.GetTexture(), 100, 100, 100, 100, angle: Time.time * 0.3f );
+                //QGL.Begin();
+                //QGL.LateBlit( AppleFont.GetTexture(), 100, 100, 100, 100, angle: Time.time * 0.3f );
 
                 QGL.LatePrint( Time.deltaTime.ToString("0.00"), 200, 100 );
                 //if ( ! Qonsole.SDLTick( renderer, window ) ) {
                 //    goto done;
                 //}
 
-                //SDL_GetWindowSize( window, out int w, out int h );
-
                 //QON_Draw( ( w - CON_X * 2 ) / cellW, ( h - CON_Y * 2 ) / cellH );
                 //ZH_UI_Begin( mouseX, mouseY );
                 //ZH_UI_End();
 
-                QGL.End();
+                Qonsole.SDLTick();
+
+                //QGL.End();
                 SDL_RenderPresent( renderer );
             }
 
 done:
 
-            Qonsole.OnApplicationQuit();
             SDL_DestroyRenderer( renderer );
             SDL_DestroyWindow( window );
             SDL_Quit();
@@ -487,8 +490,8 @@ done:
             _last = _now;
             _now = SDL_GetPerformanceCounter();
 
-            _deltaTimeDouble = (double)((_now - _last)*1000 / (double)SDL_GetPerformanceFrequency() );
-            _timeSinceStartDouble = (double)((_now - _beginTime)*1000 / (double)SDL_GetPerformanceFrequency() );
+            _deltaTimeDouble = (double)((_now - _last) / (double)SDL_GetPerformanceFrequency() );
+            _timeSinceStartDouble = (double)((_now - _beginTime) / (double)SDL_GetPerformanceFrequency() );
 
             deltaTime = ( float )_deltaTimeDouble;
             time = unscaledTime = realtimeSinceStartup = ( float )_timeSinceStartDouble;
@@ -509,7 +512,7 @@ done:
         public int pixelWidth, pixelHeight;
 
         public static implicit operator bool( Camera c ) => c != null;
-        public static Camera main = new Camera();
+        public static Camera main = null;//new Camera();
 
         public Vector2 WorldToScreenPoint( Vector3 pt ) { return Vector2.zero; }
     }
@@ -603,8 +606,8 @@ done:
 
         public static Texture texture;
 
-        const int MAX_VERTS = 4 * 1024;
-        const int MAX_INDS = 4 * 1024;
+        const int MAX_VERTS = 128 * 1024;
+        const int MAX_INDS = 128 * 1024;
 
         static SDL_Color _color;
         static int _numVertices;
@@ -619,6 +622,12 @@ done:
         }
 
         public static void End() {
+            if ( _numVertices > MAX_VERTS ) {
+                Qonsole.Error( $"Out of vertices: {_numVertices}" );
+            }
+            if ( _numIndices > MAX_INDS ) {
+                Qonsole.Error( $"Out of indices: {_numIndices}" );
+            }
             //SDL_SetRenderDrawColor( Application.renderer, 255, 255, 255, 255 );
             //SDL_SetRenderDrawBlendMode( Application.renderer, SDL_BLENDMODE_BLEND );
             SDL_SetTextureAlphaMod( texture.sdlTex, 0xff );
@@ -660,13 +669,13 @@ done:
                 int mask = MAX_INDS - 1;
                 int bv = ( _numVertices - 4 ) & ( MAX_VERTS - 1 );
 
-                _indices[( _numIndices & mask ) + 0] = bv + 0;
-                _indices[( _numIndices & mask ) + 1] = bv + 1;
-                _indices[( _numIndices & mask ) + 2] = bv + 2;
+                _indices[( _numIndices + 0 ) & mask] = bv + 0;
+                _indices[( _numIndices + 1 ) & mask] = bv + 1;
+                _indices[( _numIndices + 2 ) & mask] = bv + 2;
 
-                _indices[( _numIndices & mask ) + 3] = bv + 3;
-                _indices[( _numIndices & mask ) + 4] = bv + 0;
-                _indices[( _numIndices & mask ) + 5] = bv + 2;
+                _indices[( _numIndices + 3 ) & mask] = bv + 3;
+                _indices[( _numIndices + 4 ) & mask] = bv + 0;
+                _indices[( _numIndices + 5 ) & mask] = bv + 2;
 
                 _numIndices = Mathf.Min( _numIndices + 6, MAX_INDS );
             }
