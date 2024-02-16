@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using UnityEngine;
+using GalliumMath;
+using SDLPorts;
 
 public struct WrapBox {
     const float DefaultMinRes = 1080;

@@ -1,11 +1,14 @@
 #if UNITY_STANDALONE || UNITY_2021_1_OR_NEWER
+//#define HAS_UNITY
+#endif
 
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
-using UnityEngine;
+using SDLPorts;
 
+using GalliumMath;
 
 public static class QGL {
 
@@ -54,7 +57,7 @@ class LateImage : Late {
 static List<Late> _lates = new List<Late>();
 
 static void ImageQuad( int texW, int texH, Vector2 srcPos, Vector2 srcSize,
-                            Vector3 dstPos, Vector3 dstSize, Vector2 dir, Color color ) { 
+                            Vector2 dstPos, Vector2 dstSize, Vector2 dir, Color color ) { 
     float y = _invertedY ? ScreenHeight() - dstPos.y : dstPos.y;
     float tw = texW > 0 ? texW : 1;
     float th = texH > 0 ? texH : 1;
@@ -201,7 +204,7 @@ public static bool Start( bool invertedY = false ) {
         SetContext( null, invertedY: invertedY );
         return true;
     }
-    Debug.LogError( "Can't find GL shader" );
+    //Debug.LogError( "Can't find GL shader" );
     return false;
 }
 
@@ -341,7 +344,7 @@ public static void DrawTextWithOutline( string s, float x, float y, Color color,
 public static void DrawScreenCharWithOutline( int c, float screenX, float screenY, Color color,
                                                                                 float scale = 1 ) { 
     // == outline ==
-    Vector2 [] outline = new Vector2 [] {
+    Vector3 [] outline = new Vector3 [] {
         new Vector3( scale, 0 ),
         new Vector3( 0, scale ),
         new Vector3( scale, scale ),
@@ -830,7 +833,7 @@ public static void End( bool skipLateFlush = false ) {
         if ( _material ) {
             FlushLates();
         } else {
-            Debug.LogError( "Can't find GL material. Should call QGL.Start()" );
+            //Debug.LogError( "Can't find GL material. Should call QGL.Start()" );
         }
     }
     GL.PopMatrix();
@@ -838,6 +841,3 @@ public static void End( bool skipLateFlush = false ) {
 
 
 }
-
-
-#endif // UNITY

@@ -1,5 +1,5 @@
 #if UNITY_STANDALONE || UNITY_2021_0_OR_NEWER
-#define HAS_UNITY
+//#define HAS_UNITY
 #endif
 
 using System;
@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 
-#if SDL || HAS_UNITY
+#if SDL || HAS_UNITY || true
 
 //#define QONSOLE_BOOTSTRAP // if this is defined, the console will try to bootstrap itself
 //#define QONSOLE_BOOTSTRAP_EDITOR // if this is defined, the console will try to bootstrap itself in the editor
@@ -17,7 +17,7 @@ using System.IO;
 #if HAS_UNITY
 using UnityEngine;
 using QObject = UnityEngine.Object;
-#else
+#elif SDL
 using System.Runtime.InteropServices;
 using static AppleFont;
 using static SDL2.SDL;
@@ -25,6 +25,10 @@ using static SDL2.SDL.SDL_BlendMode;
 using static SDL2.SDL.SDL_EventType;
 using static SDL2.SDL.SDL_Keycode;
 using GalliumMath;
+using QObject = System.Object;
+#else
+using GalliumMath;
+using SDLPorts;
 using QObject = System.Object;
 #endif
 
@@ -53,7 +57,7 @@ public static class QonsoleEditorSetup {
 }
 #endif
 
-#if QONSOLE_BOOTSTRAP
+#if HAS_UNITY && QONSOLE_BOOTSTRAP
 
 public class QonsoleBootstrap : MonoBehaviour {
     public static void TrySetupQonsole() {
@@ -237,11 +241,7 @@ static Action OverlayGetFade() {
 }
 
 static void RenderBegin() {
-#if HAS_UNITY
     _totalTime = ( int )( Time.realtimeSinceStartup * 1000.0f );
-#else
-    _totalTime = ( int )SDL_GetTicks();
-#endif
 }
 
 static void RenderEnd() {
@@ -895,13 +895,11 @@ public static float LineHeight() {
 }
 
 public static void GetSize( out int conW, out int conH ) {
-#if HAS_UNITY
     int maxH = ( int )QGL.ScreenHeight();
     int cW = ( int )( _textDx * QonScale );
     int cH = ( int )( _textDy * QonScale );
     conW = Screen.width / cW;
     conH = maxH / cH;
-#endif // TODO: sdl?
 }
 
 #if SDL

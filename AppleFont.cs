@@ -3,7 +3,7 @@
 // For a copy, see https://opensource.org/licenses/MIT.
 
 #if UNITY_STANDALONE || UNITY_2021_1_OR_NEWER
-#define HAS_UNITY
+//#define HAS_UNITY
 #endif
 
 // apple II font
@@ -14,6 +14,8 @@ using System.Runtime.InteropServices;
 using static SDL2.SDL;
 using static SDL2.SDL.SDL_TextureAccess;
 #endif
+using GalliumMath;
+using SDLPorts;
 using System;
 
 public static class AppleFont {
@@ -96,7 +98,6 @@ public static void MeasureString( string s, out float w, out float h,
     h = y;
 }
 
-#if HAS_UNITY
 static Texture2D _texture;
 public static Texture2D GetTexture() {
     if ( _texture ) {
@@ -171,36 +172,36 @@ public static Texture2D CreateStringTexture( string s, int extraX = 0, int extra
     return tex;
 }
 
-#elif SDL
-static IntPtr _texture;
-public static IntPtr GetTexture( IntPtr renderer ) {
-    if ( _texture != null && _texture != IntPtr.Zero ) {
-        return _texture;
-    }
-    SDL_SetHint( SDL_HINT_RENDER_SCALE_QUALITY, "0" );
-    _texture = SDL_CreateTexture( renderer, SDL_PIXELFORMAT_ABGR8888, 
-                    ( int )SDL_TEXTUREACCESS_STATIC, APPLEIIF_WIDTH, APPLEIIF_HEIGHT );
-    int pitch = APPLEIIF_WIDTH * 4;
-    int bw = APPLEIIF_WIDTH / 8;
-    byte [] bytes = new byte[pitch * APPLEIIF_HEIGHT];
-    for ( int y = 0, idx = 0; y < APPLEIIF_HEIGHT; y++ ) {
-        for ( int x = 0; x < bw; x++ ) {
-            int bt = bitmap[x + y * bw];
-            for ( int i = 0; i < 8; i++, idx += 4 ) {
-                int alpha = ( bt & ( 1 << i ) ) != 0 ? 0xff : 0;
-                bytes[idx + 0] = 0xff;
-                bytes[idx + 1] = 0xff;
-                bytes[idx + 2] = 0xff;
-                bytes[idx + 3] = ( byte )alpha;
-            }
-        }
-    }
-    IntPtr unmanagedPointer = Marshal.AllocHGlobal( bytes.Length );
-    Marshal.Copy( bytes, 0, unmanagedPointer, bytes.Length );
-    //SDL_Rect r = new SDL_Rect();
-    SDL_UpdateTexture( _texture, IntPtr.Zero, unmanagedPointer, pitch );
-    return _texture;
-}
-#endif
+//#elif SDL
+//static IntPtr _texture;
+//public static IntPtr GetTexture( IntPtr renderer ) {
+//    if ( _texture != null && _texture != IntPtr.Zero ) {
+//        return _texture;
+//    }
+//    SDL_SetHint( SDL_HINT_RENDER_SCALE_QUALITY, "0" );
+//    _texture = SDL_CreateTexture( renderer, SDL_PIXELFORMAT_ABGR8888, 
+//                    ( int )SDL_TEXTUREACCESS_STATIC, APPLEIIF_WIDTH, APPLEIIF_HEIGHT );
+//    int pitch = APPLEIIF_WIDTH * 4;
+//    int bw = APPLEIIF_WIDTH / 8;
+//    byte [] bytes = new byte[pitch * APPLEIIF_HEIGHT];
+//    for ( int y = 0, idx = 0; y < APPLEIIF_HEIGHT; y++ ) {
+//        for ( int x = 0; x < bw; x++ ) {
+//            int bt = bitmap[x + y * bw];
+//            for ( int i = 0; i < 8; i++, idx += 4 ) {
+//                int alpha = ( bt & ( 1 << i ) ) != 0 ? 0xff : 0;
+//                bytes[idx + 0] = 0xff;
+//                bytes[idx + 1] = 0xff;
+//                bytes[idx + 2] = 0xff;
+//                bytes[idx + 3] = ( byte )alpha;
+//            }
+//        }
+//    }
+//    IntPtr unmanagedPointer = Marshal.AllocHGlobal( bytes.Length );
+//    Marshal.Copy( bytes, 0, unmanagedPointer, bytes.Length );
+//    //SDL_Rect r = new SDL_Rect();
+//    SDL_UpdateTexture( _texture, IntPtr.Zero, unmanagedPointer, pitch );
+//    return _texture;
+//}
+//#endif
 
 }

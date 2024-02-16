@@ -4,7 +4,7 @@
 
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using UnityEngine;
+using GalliumMath;
 
 #if QUI_USE_UNITY_UI
 using UnityEngine.UI;
@@ -34,6 +34,7 @@ public static int Hash( WrapBox wbox, int handle ) {
     return id;
 }
 
+#if false
 public static WrapBox FitTexture( WrapBox wbox, Texture2D tex ) {
     float texR = ( float )tex.width / tex.height;
     float wboxR = ( float )wbox.W / wbox.H;
@@ -41,6 +42,7 @@ public static WrapBox FitTexture( WrapBox wbox, Texture2D tex ) {
     float h = w / texR;
     return wbox.Center( w, h );
 }
+#endif
 
 public static bool CursorInRect( WrapBox wbox ) {
     return QUI.CursorInRect( wbox.x, wbox.y, wbox.w, wbox.h );

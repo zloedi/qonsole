@@ -1,10 +1,9 @@
 #if UNITY_STANDALONE || UNITY_2021_1_OR_NEWER
-#define HAS_UNITY
+//#define HAS_UNITY
 #endif
 
-#if HAS_UNITY
-using UnityEngine;
-#endif
+using GalliumMath;
+using SDLPorts;
 
 // This file contains the nokia-cellphone font baked in a bitmap, along with the character coordinates inside the bitmap.
 // The ttf could be found here: https://www.dafont.com/nokia-cellphone.font
@@ -879,7 +878,6 @@ static readonly byte [] bitmap = new byte[NOKIA_IMG_W * NOKIA_IMG_H] {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 };
 
-#if HAS_UNITY
 static Texture2D _texture;
 public static Texture2D GetTexture() {
     if ( _texture ) {
@@ -899,7 +897,6 @@ public static Texture2D GetTexture() {
     _texture.Apply();
     return _texture;
 }
-#endif
 
 
 }

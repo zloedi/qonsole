@@ -4,7 +4,7 @@
 //#define HEXES_QONSOLE
 
 #if UNITY_STANDALONE || UNITY_2021_0_OR_NEWER
-#define HAS_UNITY
+//#define HAS_UNITY
 #endif
 
 using System;
@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using UnityEngine;
 #else
 using GalliumMath;
+using SDLPorts;
 #endif
 
 
@@ -151,7 +152,7 @@ public static Vector2Int EvenRToAxial( int col, int row ) {
 // == hexes visual stuff ==
 
 
-#if HAS_UNITY
+#if true //HAS_UNITY
 
 public static int hexSpriteWidth;
 public static int hexSpriteHeight;
@@ -273,123 +274,123 @@ static Vector2 ShearAndScale( int x, int y, int gridHeight, Vector2 sz ) {
     return pos;
 }
 
-static void WangsGenerate_cmd( string [] argv ) {
-    Log( "Generating..." );
-    string rootName = "HexWangsGenerated";
-    GameObject root = null;
-    Transform [] trans = GameObject.FindObjectsOfType<Transform>( includeInactive: true );
-    for ( int i = trans.Length - 1; i >= 0; i-- ) {
-        var t = trans[i];
-        if ( t && t.name == rootName ) {
-            Log( "Found old root, removing...", t );
-            GameObject.DestroyImmediate( t.gameObject );
-        }
-    }
-    root = new GameObject( rootName );
-    MeshRenderer [] rends = GameObject.FindObjectsOfType<MeshRenderer>();
-    GameObject [] prism = new GameObject[2];
-    GameObject wall = null;
-    foreach ( var r in rends ) {
-        if ( r.gameObject.transform.parent.name.ToLowerInvariant().Contains( "prism" ) ) {
-            Log( "Found prism mesh...", r.gameObject );
-            prism[0] = r.gameObject.transform.parent.GetChild( 0 )?.gameObject;
-            prism[1] = r.gameObject.transform.parent.GetChild( 1 )?.gameObject;
-            break;
-        }
-    }
-#if false
-    foreach ( var r in rends ) {
-        if ( r.gameObject.transform.parent.name.ToLowerInvariant().Contains( "wall_basic" ) ) {
-            Log( "Found wall mesh...", r.gameObject );
-            wall = r.gameObject.transform.parent.gameObject;
-            break;
-        }
-    }
-#endif
-    if ( ! prism[0] || ! prism[1] ) {
-        Log( "Needs a game object with 'prism' in its name and two prism mesh children, QUIT." );
-        return;
-    }
-    var colors = new Color[2] {
-        new Color32(18, 159, 251, 255),
-        new Color32(247, 255, 0, 255),
-    };
-    Bounds bounds = prism[0].GetComponent<MeshRenderer>().bounds;
-    var dz = bounds.min.z - prism[0].transform.position.z;
-    Vector3 tip = new Vector3( 0, 0, dz );
-    Log( $"Tip position: {tip}" );
-    for ( int i = 0; i < ( 1 << 6 ); i++ ) {
-        GameObject hex = new GameObject();
-        hex.name = i.ToString( "D2" );
-        hex.transform.parent = root.transform;
-        const int maxSide = 8;
-        int x = 2 * ( i % maxSide );
-        int z = -2 * ( i / maxSide );
-        hex.transform.localPosition = new Vector3( x, 0, z );
-        for ( int side = 0; side < 6; side++ ) {
-            int mask = 1 << side;
-            bool bit = ( i & mask ) != 0;
+//static void WangsGenerate_cmd( string [] argv ) {
+//    Log( "Generating..." );
+//    string rootName = "HexWangsGenerated";
+//    GameObject root = null;
+//    Transform [] trans = GameObject.FindObjectsOfType<Transform>( includeInactive: true );
+//    for ( int i = trans.Length - 1; i >= 0; i-- ) {
+//        var t = trans[i];
+//        if ( t && t.name == rootName ) {
+//            Log( "Found old root, removing...", t );
+//            GameObject.DestroyImmediate( t.gameObject );
+//        }
+//    }
+//    root = new GameObject( rootName );
+//    MeshRenderer [] rends = GameObject.FindObjectsOfType<MeshRenderer>();
+//    GameObject [] prism = new GameObject[2];
+//    GameObject wall = null;
+//    foreach ( var r in rends ) {
+//        if ( r.gameObject.transform.parent.name.ToLowerInvariant().Contains( "prism" ) ) {
+//            Log( "Found prism mesh...", r.gameObject );
+//            prism[0] = r.gameObject.transform.parent.GetChild( 0 )?.gameObject;
+//            prism[1] = r.gameObject.transform.parent.GetChild( 1 )?.gameObject;
+//            break;
+//        }
+//    }
+//#if false
+//    foreach ( var r in rends ) {
+//        if ( r.gameObject.transform.parent.name.ToLowerInvariant().Contains( "wall_basic" ) ) {
+//            Log( "Found wall mesh...", r.gameObject );
+//            wall = r.gameObject.transform.parent.gameObject;
+//            break;
+//        }
+//    }
+//#endif
+//    if ( ! prism[0] || ! prism[1] ) {
+//        Log( "Needs a game object with 'prism' in its name and two prism mesh children, QUIT." );
+//        return;
+//    }
+//    var colors = new Color[2] {
+//        new Color32(18, 159, 251, 255),
+//        new Color32(247, 255, 0, 255),
+//    };
+//    Bounds bounds = prism[0].GetComponent<MeshRenderer>().bounds;
+//    var dz = bounds.min.z - prism[0].transform.position.z;
+//    Vector3 tip = new Vector3( 0, 0, dz );
+//    Log( $"Tip position: {tip}" );
+//    for ( int i = 0; i < ( 1 << 6 ); i++ ) {
+//        GameObject hex = new GameObject();
+//        hex.name = i.ToString( "D2" );
+//        hex.transform.parent = root.transform;
+//        const int maxSide = 8;
+//        int x = 2 * ( i % maxSide );
+//        int z = -2 * ( i / maxSide );
+//        hex.transform.localPosition = new Vector3( x, 0, z );
+//        for ( int side = 0; side < 6; side++ ) {
+//            int mask = 1 << side;
+//            bool bit = ( i & mask ) != 0;
+//
+//            GameObject hexPrism = GameObject.Instantiate( prism[bit ? 1 : 0] );
+//
+//            hexPrism.name = side.ToString();
+//            hexPrism.transform.parent = hex.transform;
+//            hexPrism.transform.localPosition = Vector3.zero;
+//
+//            hexPrism.transform.RotateAround( hex.transform.position + tip, Vector3.up, 30 + 60 * side );
+//            hexPrism.transform.localPosition -= tip;
+//        }
+//        if ( wall ) {
+//            GameObject wi = GameObject.Instantiate( wall );
+//            wi.transform.parent = hex.transform;
+//            wi.transform.localPosition = Vector3.zero;
+//        }
+//    }
+//    Log( "Generated Hexagonal Wang Tiles Set." );
+//}
 
-            GameObject hexPrism = GameObject.Instantiate( prism[bit ? 1 : 0] );
+//static void WangsAssignWalls_cmd( string [] argv ) {
+//    Transform [] trans = GameObject.FindObjectsOfType<Transform>( includeInactive: false );
+//    Transform [] walls = new Transform[64];
+//    Transform root = null;
+//
+//    foreach ( var t in trans ) {
+//        if ( ! root && t.name == "HexWangsGenerated" ) {
+//            root = t;
+//        }
+//
+//        if ( t.name.ToLowerInvariant().Contains( "wall_basic" )
+//                                                    && t.parent.parent.name == "HexWangsWalls" ) {
+//            int.TryParse( t.parent.name, out int idx );
+//            walls[idx & 63] = t;
+//        }
+//    }
+//
+//    if ( ! root ) {
+//        Log( "Can't find root called HexWangsGenerated." );
+//    }
+//
+//    for ( int i = 0; i < 64; i++ ) {
+//
+//        if ( ! walls[i] ) {
+//            Log( $"Missing wall {i}" );
+//            continue;
+//        }
+//
+//        Transform hex = root.GetChild( i );
+//
+//        if ( hex ) {
+//            GameObject wall = GameObject.Instantiate( walls[i].gameObject );
+//            wall.name = "wall_basic_" + i.ToString( "D2" );
+//            wall.transform.parent = hex;
+//            wall.transform.localPosition = walls[i].localPosition;
+//        }
+//    }
+//}
 
-            hexPrism.name = side.ToString();
-            hexPrism.transform.parent = hex.transform;
-            hexPrism.transform.localPosition = Vector3.zero;
-
-            hexPrism.transform.RotateAround( hex.transform.position + tip, Vector3.up, 30 + 60 * side );
-            hexPrism.transform.localPosition -= tip;
-        }
-        if ( wall ) {
-            GameObject wi = GameObject.Instantiate( wall );
-            wi.transform.parent = hex.transform;
-            wi.transform.localPosition = Vector3.zero;
-        }
-    }
-    Log( "Generated Hexagonal Wang Tiles Set." );
-}
-
-static void WangsAssignWalls_cmd( string [] argv ) {
-    Transform [] trans = GameObject.FindObjectsOfType<Transform>( includeInactive: false );
-    Transform [] walls = new Transform[64];
-    Transform root = null;
-
-    foreach ( var t in trans ) {
-        if ( ! root && t.name == "HexWangsGenerated" ) {
-            root = t;
-        }
-
-        if ( t.name.ToLowerInvariant().Contains( "wall_basic" )
-                                                    && t.parent.parent.name == "HexWangsWalls" ) {
-            int.TryParse( t.parent.name, out int idx );
-            walls[idx & 63] = t;
-        }
-    }
-
-    if ( ! root ) {
-        Log( "Can't find root called HexWangsGenerated." );
-    }
-
-    for ( int i = 0; i < 64; i++ ) {
-
-        if ( ! walls[i] ) {
-            Log( $"Missing wall {i}" );
-            continue;
-        }
-
-        Transform hex = root.GetChild( i );
-
-        if ( hex ) {
-            GameObject wall = GameObject.Instantiate( walls[i].gameObject );
-            wall.name = "wall_basic_" + i.ToString( "D2" );
-            wall.transform.parent = hex;
-            wall.transform.localPosition = walls[i].localPosition;
-        }
-    }
-}
-
-static void Log( string s, UnityEngine.Object o = null ) {
+static void Log( string s, object o = null ) {
 #if HEXES_QONSOLE
-    Qonsole.Log( s, o );
+    //Qonsole.Log( s, o );
 #else
     Debug.Log( s, o );
 #endif
@@ -441,105 +442,105 @@ public static void DrawGLText( string logText, Vector2 screenPos, int x, int y, 
     QGL.DrawTextWithOutline( logText, ( int )pos.x, ( int )pos.y, Color.white );
 }
 
-public static void PrintList( IList<ushort> list, int gridW, int gridH, string logText = null,
-                                        float hexSize = 0,
-                                        bool isOffset = false,
-                                        IList<Color> colors = null,
-                                        IList<string> texts = null,
-                                        Func<IList<Vector2Int>,int,string> hexListString = null ) {
-    var coords = new Vector2Int[list.Count];
-    for ( int i = 0; i < list.Count; i++ ) {
-        coords[i] = new Vector2Int( list[i] % gridW, list[i] / gridW );
-    }
-    PrintList( coords, logText, hexSize, gridW, gridH, isOffset, colors, texts, hexListString );
-}
+//public static void PrintList( IList<ushort> list, int gridW, int gridH, string logText = null,
+//                                        float hexSize = 0,
+//                                        bool isOffset = false,
+//                                        IList<Color> colors = null,
+//                                        IList<string> texts = null,
+//                                        Func<IList<Vector2Int>,int,string> hexListString = null ) {
+//    var coords = new Vector2Int[list.Count];
+//    for ( int i = 0; i < list.Count; i++ ) {
+//        coords[i] = new Vector2Int( list[i] % gridW, list[i] / gridW );
+//    }
+//    PrintList( coords, logText, hexSize, gridW, gridH, isOffset, colors, texts, hexListString );
+//}
 
-public static void PrintList( IList<Vector2Int> list, string logText = null, float hexSize = 0,
-                    int gridW = -1, int gridH = -1, bool isOffset = false,
-                    IList<Color> colors = null,
-                    IList<string> texts = null,
-                    Func<IList<Vector2Int>,int,string> hexListString = null ) {
-    if ( logText != null ) {
-        Qonsole.Log( logText );
-    }
-
-    if ( ! hexSprite) {
-        CreateHexTexture();
-    }
-
-    // we shouldn't use texture.width/height, since this could be called from another thread
-    // and texture access is allowed only on the main thread
-    hexSize = hexSize <= 0 ? hexSpriteWidth : hexSize;
-    Vector2 quadSize = new Vector2( hexSize, hexSize * hexSpriteAspect );
-    hexListString = hexListString != null ? hexListString : (l,i) => i.ToString();
-
-    var captureList = new List<Vector2Int>( list );
-    var captureColors = colors != null ? new List<Color>( colors ) : null;
-    var captureTexts = texts != null ? new List<string>( texts ) : null;
-    
-    if ( gridW < 0 || gridH < 0 ) {
-        int maxX = 0, maxY = 0;
-        foreach ( var p in captureList ) {
-            maxX = p.x > maxX ? p.x : maxX;
-            maxY = p.y > maxY ? p.y : maxY;
-        }
-        gridW = maxX + 1;
-        gridH = maxY + 1;
-    }
-
-    Qonsole.PrintAndAct( "\n", (screenPos,alpha) => {
-        QGL.SetTexture( hexSprite );
-        GL.Begin( GL.QUADS );
-#if false
-        for ( int y = 0; y < gridH; y++ ) {
-            for ( int x = 0; x < gridW; x++ ) {
-                DrawGLHex( screenPos, x, y, gridH, quadSize, alpha, 0.4f );
-            }
-        }
-#endif
-
-        if ( isOffset ) {
-            for ( int i = 0; i < captureList.Count; i++ ) {
-                var p = captureList[i];
-                var c = captureColors != null ? captureColors[i] : new Color( 1, 0.65f, 0.1f );
-                Vector2Int q = OddRToAxial( p.x, p.y );
-                DrawGLHex( screenPos, q.x, q.y, gridH, quadSize, alpha, c );
-            }
-        } else {
-            for ( int i = 0; i < captureList.Count; i++ ) {
-                var p = captureList[i];
-                var c = captureColors != null ? captureColors[i] : new Color( 1, 0.65f, 0.1f );
-                DrawGLHex( screenPos, p.x, p.y, gridH, quadSize, alpha, c );
-            }
-        }
-
-        GL.End();
-
-        // draw hex text
-        QGL.SetFontTexture();
-        GL.Begin( GL.QUADS );
-        if ( isOffset ) {
-            for ( int i = 0; i < captureList.Count; i++ ) {
-                Vector2Int p = captureList[i];
-                Vector2Int q = OddRToAxial( p.x, p.y );
-                string txt = captureTexts != null ? captureTexts[i] : hexListString( captureList, i );
-                DrawGLText( txt, screenPos, q.x, q.y, gridH, quadSize );
-            }
-        } else {
-            for ( int i = 0; i < captureList.Count; i++ ) {
-                Vector2Int p = captureList[i];
-                string txt = captureTexts != null ? captureTexts[i] : hexListString( captureList, i );
-                DrawGLText( hexListString( captureList, i ), screenPos, p.x, p.y, gridH, quadSize );
-            }
-        }
-        GL.End();
-    } );
-    float hexH = ( int )( quadSize.y * 0.83f );
-    int numLines = ( int )( gridH * hexH / Qonsole.LineHeight() + 0.5f );
-    for ( int i = 0; i < numLines; i++ ) {
-        Qonsole.Print( "\n" );
-    }
-}
+//public static void PrintList( IList<Vector2Int> list, string logText = null, float hexSize = 0,
+//                    int gridW = -1, int gridH = -1, bool isOffset = false,
+//                    IList<Color> colors = null,
+//                    IList<string> texts = null,
+//                    Func<IList<Vector2Int>,int,string> hexListString = null ) {
+//    if ( logText != null ) {
+//        Qonsole.Log( logText );
+//    }
+//
+//    if ( ! hexSprite) {
+//        CreateHexTexture();
+//    }
+//
+//    // we shouldn't use texture.width/height, since this could be called from another thread
+//    // and texture access is allowed only on the main thread
+//    hexSize = hexSize <= 0 ? hexSpriteWidth : hexSize;
+//    Vector2 quadSize = new Vector2( hexSize, hexSize * hexSpriteAspect );
+//    hexListString = hexListString != null ? hexListString : (l,i) => i.ToString();
+//
+//    var captureList = new List<Vector2Int>( list );
+//    var captureColors = colors != null ? new List<Color>( colors ) : null;
+//    var captureTexts = texts != null ? new List<string>( texts ) : null;
+//    
+//    if ( gridW < 0 || gridH < 0 ) {
+//        int maxX = 0, maxY = 0;
+//        foreach ( var p in captureList ) {
+//            maxX = p.x > maxX ? p.x : maxX;
+//            maxY = p.y > maxY ? p.y : maxY;
+//        }
+//        gridW = maxX + 1;
+//        gridH = maxY + 1;
+//    }
+//
+//    Qonsole.PrintAndAct( "\n", (screenPos,alpha) => {
+//        QGL.SetTexture( hexSprite );
+//        GL.Begin( GL.QUADS );
+//#if false
+//        for ( int y = 0; y < gridH; y++ ) {
+//            for ( int x = 0; x < gridW; x++ ) {
+//                DrawGLHex( screenPos, x, y, gridH, quadSize, alpha, 0.4f );
+//            }
+//        }
+//#endif
+//
+//        if ( isOffset ) {
+//            for ( int i = 0; i < captureList.Count; i++ ) {
+//                var p = captureList[i];
+//                var c = captureColors != null ? captureColors[i] : new Color( 1, 0.65f, 0.1f );
+//                Vector2Int q = OddRToAxial( p.x, p.y );
+//                DrawGLHex( screenPos, q.x, q.y, gridH, quadSize, alpha, c );
+//            }
+//        } else {
+//            for ( int i = 0; i < captureList.Count; i++ ) {
+//                var p = captureList[i];
+//                var c = captureColors != null ? captureColors[i] : new Color( 1, 0.65f, 0.1f );
+//                DrawGLHex( screenPos, p.x, p.y, gridH, quadSize, alpha, c );
+//            }
+//        }
+//
+//        GL.End();
+//
+//        // draw hex text
+//        QGL.SetFontTexture();
+//        GL.Begin( GL.QUADS );
+//        if ( isOffset ) {
+//            for ( int i = 0; i < captureList.Count; i++ ) {
+//                Vector2Int p = captureList[i];
+//                Vector2Int q = OddRToAxial( p.x, p.y );
+//                string txt = captureTexts != null ? captureTexts[i] : hexListString( captureList, i );
+//                DrawGLText( txt, screenPos, q.x, q.y, gridH, quadSize );
+//            }
+//        } else {
+//            for ( int i = 0; i < captureList.Count; i++ ) {
+//                Vector2Int p = captureList[i];
+//                string txt = captureTexts != null ? captureTexts[i] : hexListString( captureList, i );
+//                DrawGLText( hexListString( captureList, i ), screenPos, p.x, p.y, gridH, quadSize );
+//            }
+//        }
+//        GL.End();
+//    } );
+//    float hexH = ( int )( quadSize.y * 0.83f );
+//    int numLines = ( int )( gridH * hexH / Qonsole.LineHeight() + 0.5f );
+//    for ( int i = 0; i < numLines; i++ ) {
+//        Qonsole.Print( "\n" );
+//    }
+//}
 
 #if false // example usage
 static void PrintHexes_kmd( string [] argv ) {
