@@ -233,53 +233,6 @@ static Action OverlayGetFade() {
     };
 }
 
-static void RenderGL( bool skip = false ) {
-    void drawChar( int c, int x, int y, bool isCursor, object param ) { 
-        if ( DrawCharBegin( ref c, x, y, isCursor, out Color color, out Vector2 screenPos ) ) {
-            QGL.DrawScreenCharWithOutline( c, screenPos.x, screenPos.y, color, QonScale );
-        }
-    }
-
-    _totalTime = ( int )( Time.realtimeSinceStartup * 1000.0f );
-
-    QGL.Begin();
-
-    QGL.FlushLates();
-
-    if ( ! skip ) {
-        GetSize( out int conW, out int conH );
-
-        QGL.LatePrint( conW + "," + conH, 300, 100 );
-
-        if ( Active ) {
-            QGL.SetWhiteTexture();
-#if false
-            GL.Begin( GL.QUADS );
-            GL.Color( new Color( 0, 0, 0, QonAlpha_kvar ) );
-            QGL.DrawSolidQuad( new Vector2( 0, 0 ),
-                                                new Vector2( Screen.width, QGL.ScreenHeight() ) );
-            GL.End();
-#endif
-        } else {
-            int percent = Mathf.Clamp( QonOverlayPercent_kvar, 0, 100 );
-            conH = conH * percent / 100;
-        }
-
-        QGL.SetFontTexture();
-        GL.Begin( GL.QUADS );
-        QON_DrawChar = drawChar;
-        QON_DrawEx( conW, conH, ! Active, 0 );
-        GL.End();
-    }
-
-    QGL.End( skipLateFlush: true );
-
-    _overlayAlpha = 1;
-    _drawCharStartY = 0;
-    _drawCharColorStack.Clear();
-    _drawCharColorStack.Add( Color.white );
-}
-
 static bool DrawCharBegin( ref int c, int x, int y, bool isCursor, out Color color,
                                                                         out Vector2 screenPos ) {
     color = Color.white;
@@ -424,12 +377,58 @@ static void Exit_kmd( string [] argv ) {
     }
     Application.Quit();
 #else
+    OnApplicationQuit();
     Environment.Exit( 1 );
     // ...
 #endif
 }
 
 static void Quit_kmd( string [] argv ) { Exit_kmd( argv ); }
+
+public static void RenderGL( bool skip = false ) {
+    _totalTime = ( int )( Time.realtimeSinceStartup * 1000.0f );
+
+    QGL.Begin();
+
+    QGL.FlushLates();
+
+    if ( ! skip ) {
+        GetSize( out int conW, out int conH );
+
+        QGL.LatePrint( conW + "," + conH, 300, 100 );
+
+        if ( Active ) {
+            QGL.SetWhiteTexture();
+            GL.Begin( GL.QUADS );
+            GL.Color( new Color( 0, 0, 0, QonAlpha_kvar ) );
+            QGL.DrawSolidQuad( new Vector2( 0, 0 ),
+                                                new Vector2( Screen.width, QGL.ScreenHeight() ) );
+            GL.End();
+        } else {
+            int percent = Mathf.Clamp( QonOverlayPercent_kvar, 0, 100 );
+            conH = conH * percent / 100;
+        }
+
+        QGL.SetFontTexture();
+        GL.Begin( GL.QUADS );
+        QON_DrawChar = drawChar;
+        QON_DrawEx( conW, conH, ! Active, 0 );
+        GL.End();
+    }
+
+    QGL.End( skipLateFlush: true );
+
+    _overlayAlpha = 1;
+    _drawCharStartY = 0;
+    _drawCharColorStack.Clear();
+    _drawCharColorStack.Add( Color.white );
+
+    void drawChar( int c, int x, int y, bool isCursor, object param ) { 
+        if ( DrawCharBegin( ref c, x, y, isCursor, out Color color, out Vector2 screenPos ) ) {
+            QGL.DrawScreenCharWithOutline( c, screenPos.x, screenPos.y, color, QonScale );
+        }
+    }
+}
 
 // some stuff need to be initialized before the Start() Unity callback
 public static void Init( int configVersion = -1 ) {
@@ -734,7 +733,6 @@ public static void OnApplicationQuit() {
 // == public API ==
 
 public static void Start() {
-#if HAS_UNITY
     if ( QGL.Start( invertedY: QonInvertPlayY ) ) {
         Started = true;
         Log( "Qonsole Started." );
@@ -743,11 +741,6 @@ public static void Start() {
     } else {
         Started = false;
     }
-#else
-    Started = true;
-    Log( "Qonsole Started." );
-    onStart_f();
-#endif
 }
 
 public static void TryExecute( string cmdLine, object context = null, bool keepJsonTags = false ) {
@@ -813,14 +806,10 @@ public static void PrintAndAct( string s, Action<Vector2,float> a ) {
             float alpha = Active ? 1 : _overlayAlpha;
             if ( alpha > 0 ) {
                 Vector2 screenPos = QoncheToScreen( x, y );
-#if HAS_UNITY
                 GL.End();
                 a( screenPos, alpha );
                 QGL.SetFontTexture();
                 GL.Begin( GL.QUADS );
-#else
-                a( screenPos, alpha );
-#endif
             }
         } );
     } else {
@@ -900,10 +889,6 @@ public static void GetSize( out int conW, out int conH ) {
 }
 
 #if ! HAS_UNITY
-
-public static void SDLRender() {
-    RenderGL();
-}
 
 public static bool SDLTick() {
     while ( SDL_PollEvent( out SDL_Event ev ) != 0 ) {

@@ -26,10 +26,8 @@ public const float SQRT_3 = 1.73205080757f;
 
 // we really hope this goes on the main thread
 static Hexes() {
-#if HAS_UNITY
     CreateHexTexture();
     CreateHexRegularTexture();
-#endif
 }
 
 

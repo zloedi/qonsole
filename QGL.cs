@@ -272,7 +272,7 @@ public static void DrawTextNokia( string s, float x, float y, Color color, float
 
         var dst = new float[] {
             x + cx,
-            y + cy - g.yoffset * scale,
+            y + cy + g.yoffset * scale,
             g.width,
             g.height,
         };
@@ -295,21 +295,12 @@ public static void DrawTextNokia( string s, float x, float y, Color color, float
         }
 
         Vector3 [] verts;
-        if ( _invertedY ) {
-            verts = new Vector3[4] {
-                new Vector3( 0, 0, 0 ),
-                new Vector3( dst[2], 0, 0 ),
-                new Vector3( dst[2], -dst[3], 0 ),
-                new Vector3( 0, -dst[3], 0 ),
-            };
-        } else {
-            verts = new Vector3[4] {
-                new Vector3( 0, 0, 0 ),
-                new Vector3( dst[2], 0, 0 ),
-                new Vector3( dst[2], dst[3], 0 ),
-                new Vector3( 0, dst[3], 0 ),
-            };
-        }
+        verts = new Vector3 [4] {
+            new Vector3( 0, 0, 0 ),
+            new Vector3( g.width, 0, 0 ),
+            new Vector3( g.width, g.height, 0 ),
+            new Vector3( 0, g.height, 0 ),
+        };
 
         GL.Color( color );
         for ( int i = 0; i < 4; i++ ) {
@@ -318,7 +309,7 @@ public static void DrawTextNokia( string s, float x, float y, Color color, float
         }
 
         cx += c == '\n' ? -cx : g.xadvance * scale;
-        cy += c == '\n' ? -NokiaFont.NOKIA_LN_H * scale : 0;
+        cy += c == '\n' ? NokiaFont.NOKIA_LN_H * scale : 0;
     }
 }
 
@@ -810,7 +801,7 @@ public static void FlushLates() {
 
         if ( start < li ) {
             SetWhiteTexture();
-            GL.Begin( GL.LINES);
+            GL.Begin( GL.LINES );
             for ( int i = start; i < li; i++ ) {
                 var l = ( LateLine )_lates[i];
                 GL.Color( l.color );

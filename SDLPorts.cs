@@ -355,9 +355,9 @@ namespace SDLPorts {
     }
 
     public static class Application {
-        public static bool isFocused;
-        public static bool isPlaying;
-        public static bool isEditor;
+        public static bool isFocused = true;
+        public static bool isPlaying = true;
+        public static bool isEditor = false;
         public static string persistentDataPath = "./";
 
         public static IntPtr renderer;
@@ -366,8 +366,6 @@ namespace SDLPorts {
         public static int deltaMs;
 
         public static void Run( string [] argv, Action init, Action run, Action done ) {
-            try {
-
             SDL_Init( SDL_INIT_VIDEO );
             SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE;
             SDL_CreateWindowAndRenderer( 1024, 768, flags, out window, out renderer );
@@ -375,16 +373,17 @@ namespace SDLPorts {
 
             Qonsole.Init();
             Qonsole.Start();
-            Qonsole.Toggle();
+
+            KeyBinds.Log = s => Qonsole.Log( "Keybinds: " + s );
+            KeyBinds.Error = s => Qonsole.Error( "Keybinds: " + s );
+
+            // done in the qonsole too
+            //QGL.Start();
+
             Qonsole.Log( Guid.NewGuid() );
 
             QGL.Log = o => Qonsole.Log( "QGL: " + o );
             QGL.Error = s => Qonsole.Error( "QGL: " + s );
-
-            QGL.Start();
-
-            KeyBinds.Log = s => Qonsole.Log( "Keybinds: " + s );
-            KeyBinds.Error = s => Qonsole.Error( "Keybinds: " + s );
 
             while ( true ) {
                 SDL_GetWindowSize( window, out int w, out int h );
@@ -397,54 +396,13 @@ namespace SDLPorts {
                     break;
                 }
 
-            //  while ( SDL_PollEvent( out SDL_Event ev ) != 0 ) {
-            //      SDL_Keycode code = ev.key.keysym.sym;
-            //      switch( ev.type ) {
-            //            case SDL_TEXTINPUT:
-            //                //QON_Insert( ev.text.text );
-            //                break;
-            //            case SDL_KEYDOWN:
-            //                //switch ( code ) {
-            //                //    case SDLK_RIGHT:     QON_MoveRight( 1 ); break;
-            //                //    case SDLK_LEFT:      QON_MoveLeft( 1 );  break;
-            //                //    case SDLK_DELETE:    QON_Delete( 1 );    break;
-            //                //    case SDLK_BACKSPACE: QON_Backspace( 1 ); break;
-            //                //    case SDLK_PAGEUP:    QON_PageUp();       break;
-            //                //    case SDLK_PAGEDOWN:  QON_PageDown();     break;
-            //                //    case SDLK_RETURN: {
-            //                //        char buf[64];
-            //                //        QON_EmitCommand( sizeof( buf ), buf );
-            //                //    }
-            //                //    break;
-            //                //    default: break;
-            //                //}
-            //                //break;
-            //
-            //                      case SDL_MOUSEMOTION:
-            //                              //mouseX = ev.motion.x;
-            //                //mouseY = ev.motion.y;
-            //                              break;
-            //
-            //            case SDL_MOUSEBUTTONDOWN:
-            //                //ZH_UI_OnMouseButton( 1 );
-            //                break;
-            //
-            //            case SDL_MOUSEBUTTONUP:
-            //                //ZH_UI_OnMouseButton( 0 );
-            //                break;
-            //
-            //          case SDL_QUIT:
-            //              goto done;
-
-            //          default:
-            //              break;
-            //      }
-            //  }
-
-                SDL_SetRenderDrawColor( renderer, 40, 45, 50, 255 );
-                SDL_RenderClear( renderer );
+                //SDL_SetRenderDrawColor( renderer, 40, 45, 50, 255 );
+                //SDL_RenderClear( renderer );
 
                 //QGL.Begin();
+
+                Qonsole.Update();
+
                 QGL.LateBlit( AppleFont.GetTexture(), 100, 100, 100, 100, angle: Time.time * 5f );
 
                 QGL.LatePrint( Time.deltaTime.ToString("0.00"), 200, 100 );
@@ -464,17 +422,15 @@ namespace SDLPorts {
                 //ZH_UI_End();
 
                 //QGL.End();
-                Qonsole.SDLRender();
+                Qonsole.RenderGL();
                 SDL_RenderPresent( renderer );
             }
+
+            Qonsole.OnApplicationQuit();
 
             SDL_DestroyRenderer( renderer );
             SDL_DestroyWindow( window );
             SDL_Quit();
-
-            } catch ( Exception e ) {
-                Qonsole.Error( e );
-            }
         }
     }
 
@@ -649,7 +605,7 @@ namespace SDLPorts {
                                                                             _indices, _numIndices );
             } else if ( _mode == LINES ) {
                 SDL_SetRenderDrawBlendMode( Application.renderer, SDL_BLENDMODE_BLEND );
-                for ( int i = 0; i < _numVertices - 1; i++ ) {
+                for ( int i = 0; i < _numVertices - 1; i += 2 ) {
                     SDL_Vertex v0 = _vertices[( i + 0 ) & ( MAX_VERTS - 1 )];
                     SDL_Vertex v1 = _vertices[( i + 1 ) & ( MAX_VERTS - 1 )];
                     SDL_FPoint p0 = v0.position;
