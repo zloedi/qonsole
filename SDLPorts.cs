@@ -393,9 +393,13 @@ namespace SDLPorts {
 
                 Time.Tick();
 
-                while ( SDL_PollEvent( out SDL_Event ev ) != 0 ) {
-                    SDL_Keycode code = ev.key.keysym.sym;
-                    switch( ev.type ) {
+                if ( ! Qonsole.SDLTick() ) {
+                    break;
+                }
+
+            //  while ( SDL_PollEvent( out SDL_Event ev ) != 0 ) {
+            //      SDL_Keycode code = ev.key.keysym.sym;
+            //      switch( ev.type ) {
             //            case SDL_TEXTINPUT:
             //                //QON_Insert( ev.text.text );
             //                break;
@@ -429,13 +433,13 @@ namespace SDLPorts {
             //                //ZH_UI_OnMouseButton( 0 );
             //                break;
             //
-                        case SDL_QUIT:
-                            goto done;
+            //          case SDL_QUIT:
+            //              goto done;
 
-                        default:
-                            break;
-                    }
-                }
+            //          default:
+            //              break;
+            //      }
+            //  }
 
                 SDL_SetRenderDrawColor( renderer, 40, 45, 50, 255 );
                 SDL_RenderClear( renderer );
@@ -459,13 +463,10 @@ namespace SDLPorts {
                 //ZH_UI_Begin( mouseX, mouseY );
                 //ZH_UI_End();
 
-                Qonsole.SDLTick();
-
                 //QGL.End();
+                Qonsole.SDLRender();
                 SDL_RenderPresent( renderer );
             }
-
-done:
 
             SDL_DestroyRenderer( renderer );
             SDL_DestroyWindow( window );

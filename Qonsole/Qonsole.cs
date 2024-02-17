@@ -193,8 +193,8 @@ static float _overlayAlpha = 1;
 // the colorization stack for nested tags
 static List<Color> _drawCharColorStack = new List<Color>(){ Color.white };
 static bool _oneShot;
-//static string [] _history;
-//static int _historyItem;
+static string [] _history;
+static int _historyItem;
 
 #if QONSOLE_QUI
 static Vector2 _mousePosition;
@@ -240,7 +240,7 @@ static void RenderGL( bool skip = false ) {
         }
     }
 
-    RenderBegin();
+    _totalTime = ( int )( Time.realtimeSinceStartup * 1000.0f );
 
     QGL.Begin();
 
@@ -274,14 +274,6 @@ static void RenderGL( bool skip = false ) {
 
     QGL.End( skipLateFlush: true );
 
-    RenderEnd();
-}
-
-static void RenderBegin() {
-    _totalTime = ( int )( Time.realtimeSinceStartup * 1000.0f );
-}
-
-static void RenderEnd() {
     _overlayAlpha = 1;
     _drawCharStartY = 0;
     _drawCharColorStack.Clear();
@@ -315,6 +307,70 @@ static bool DrawCharBegin( ref int c, int x, int y, bool isCursor, out Color col
     screenPos = QoncheToScreen( x, y );
 
     return true;
+}
+
+static void Autocomplete() {
+    string cmd = QON_GetCommand( out int cursor );
+
+    // cursor may be behind last char
+    cursor = Mathf.Min( cursor, cmd.Length - 1 );
+
+    // skip to first token
+    while ( cursor > 0 && cmd[cursor] == ' ' ) {
+        cursor--;
+    }
+
+    string cmdpre = "";
+    string cmdsuf = cmd;
+
+    for ( int i = cursor; i >= 0; i-- ) {
+        if ( cmd[i] == ' ' ) {
+            cmdpre = cmd.Substring( 0, i );
+            cmdsuf = cmd.Substring( i );
+            break;
+        }
+    }
+
+    cmdsuf = Cellophane.Autocomplete( cmdsuf );
+    if ( cmdpre.Length > 0 ) {
+        QON_SetCommand( cmdpre + ' ' + cmdsuf );
+    } else {
+        QON_SetCommand( cmdsuf );
+    }
+}
+
+static void HandleEnter() {
+    //_history = null;
+    string cmdClean, cmdRaw;
+    QON_GetCommandEx( out cmdClean, out cmdRaw );
+    EraseCommand();
+    Log( cmdRaw );
+    Cellophane.AddToHistory( cmdClean );
+    TryExecute( cmdClean );
+    FlushConfig();
+}
+
+static void HandleEscape() {
+    if ( _history != null ) {
+        // cancel history, store last typed-in command
+        QON_SetCommand( _history[0] );
+        _history = null;
+    } else {
+        // just erase the prompt if no history
+        EraseCommand();
+    }
+}
+
+static void HandleUpOrDownArrow( bool down ) {
+    string cmd = QON_GetCommand();
+    if ( _history == null ) {
+        _history = Cellophane.GetHistory( cmd );
+        _historyItem = _history.Length * 100;
+    }
+    _historyItem += down ? 1 : -1;
+    if ( _historyItem >= 0 ) {
+        QON_SetCommand( _history[_historyItem % _history.Length] );
+    }
 }
 
 // the internal commands have a different path of execution
@@ -546,59 +602,18 @@ public static void OnGUIInternal( bool skipRender = false ) {
                 } else if ( Event.current.keyCode == KeyCode.PageDown ) {
                     QON_PageDown();
                 } else if ( Event.current.keyCode == KeyCode.Escape ) {
-                    if ( _history != null ) {
-                        // cancel history, store last typed-in command
-                        QON_SetCommand( _history[0] );
-                        _history = null;
-                    } else {
-                        // just erase the prompt if no history
-                        EraseCommand();
-                    }
+                    HandleEscape();
                 } else if ( Event.current.keyCode == KeyCode.DownArrow
                             || Event.current.keyCode == KeyCode.UpArrow ) {
-                    string cmd = QON_GetCommand();
-                    if ( _history == null ) {
-                        _history = Cellophane.GetHistory( cmd );
-                        _historyItem = _history.Length * 100;
-                    }
-                    _historyItem += Event.current.keyCode == KeyCode.DownArrow ? 1 : -1;
-                    if ( _historyItem >= 0 ) {
-                        QON_SetCommand( _history[_historyItem % _history.Length] );
-                    }
+                    HandleUpOrDownArrow( Event.current.keyCode == KeyCode.DownArrow );
                 } else {
                     char c = Event.current.character;
                     if ( c == '`' ) {
                     } else if ( c == '\t' ) {
-                        string cmd = QON_GetCommand( out int cursor );
-
-                        // cursor may be behind last char
-                        cursor = Mathf.Min( cursor, cmd.Length - 1 );
-
-                        // skip to first token
-                        while ( cursor > 0 && cmd[cursor] == ' ' ) {
-                            cursor--;
-                        }
-
-                        string cmdpre = "";
-                        string cmdsuf = cmd;
-
-                        for ( int i = cursor; i >= 0; i-- ) {
-                            if ( cmd[i] == ' ' ) {
-                                cmdpre = cmd.Substring( 0, i );
-                                cmdsuf = cmd.Substring( i );
-                                break;
-                            }
-                        }
-
-                        cmdsuf = Cellophane.Autocomplete( cmdsuf );
-                        if ( cmdpre.Length > 0 ) {
-                            QON_SetCommand( cmdpre + ' ' + cmdsuf );
-                        } else {
-                            QON_SetCommand( cmdsuf );
-                        }
+                        Autocomplete();
                     } else if ( c == '\b' ) {
                     } else if ( c == '\n' || c == '\r' ) {
-                        OnEnter();
+                        HandleEnter();
                     } else {
                         _history = null;
                         QON_InsertCommand( c.ToString() );
@@ -686,17 +701,6 @@ static void EraseCommand() {
         Active = false;
         _oneShot = false;
     }
-}
-
-static void OnEnter() {
-    //_history = null;
-    string cmdClean, cmdRaw;
-    QON_GetCommandEx( out cmdClean, out cmdRaw );
-    EraseCommand();
-    Log( cmdRaw );
-    Cellophane.AddToHistory( cmdClean );
-    TryExecute( cmdClean );
-    FlushConfig();
 }
 
 public static void Update() {
@@ -897,10 +901,11 @@ public static void GetSize( out int conW, out int conH ) {
 
 #if ! HAS_UNITY
 
-public static void SDLTick() {
+public static void SDLRender() {
     RenderGL();
+}
 
-#if false
+public static bool SDLTick() {
     while ( SDL_PollEvent( out SDL_Event ev ) != 0 ) {
         SDL_Keycode code = ev.key.keysym.sym;
         switch( ev.type ) {
@@ -921,60 +926,53 @@ public static void SDLTick() {
                     case SDLK_RIGHT:     QON_MoveRight( 1 );     break;
                     case SDLK_HOME:      QON_MoveLeft( 99999 );  break;
                     case SDLK_END:       QON_MoveRight( 99999 ); break;
-
                     case SDLK_PAGEUP:    QON_PageUp();           break;
                     case SDLK_PAGEDOWN:  QON_PageDown();         break;
-                    case SDLK_ESCAPE:    EraseCommand();     break;
                     case SDLK_BACKQUOTE: Toggle();               break;
+                    case SDLK_RETURN:    HandleEnter();          break;
+                    case SDLK_ESCAPE:    HandleEscape();         break;
+                    case SDLK_TAB:       Autocomplete();         break;
 
-                    case SDLK_BACKSPACE: {
-                        //_history = null;
+                    case SDLK_UP:
+                    case SDLK_DOWN:
+                        HandleUpOrDownArrow( code == SDLK_DOWN );
+                        break;
+
+                    case SDLK_BACKSPACE:
+                        _history = null;
                         QON_Backspace( 1 );
                         break;
-                    }
 
-                    case SDLK_DELETE: {
-                        //_history = null;
+                    case SDLK_DELETE:
+                        _history = null;
                         QON_Delete( 1 );
                         break;
-                    }
-
-                    case SDLK_TAB: {
-                        string autocomplete = Cellophane.Autocomplete( QON_GetCommand() );
-                        QON_SetCommand( autocomplete );
-                    }
-                    break;
-
-                    case SDLK_RETURN: {
-                        OnEnter();
-                    }
-                    break;
 
                     default: break;
                 }
                 break;
 
 			case SDL_MOUSEMOTION:
-				//x_mouseX = ev.motion.x;
-                //x_mouseY = ev.motion.y;
+#if QONSOLE_QUI
+                _mousePosition = new Vector2( ev.motion.x, ev.motion.y );
+#endif
 				break;
 
             case SDL_MOUSEBUTTONDOWN:
-                //ZH_UI_OnMouseButton( 1 );
                 break;
 
             case SDL_MOUSEBUTTONUP:
-                //ZH_UI_OnMouseButton( 0 );
                 break;
 
             case SDL_QUIT:
-                return;
+                return false;
 
             default:
                 break;
         }
     }
-#endif
+
+    return true;
 }
 
 #endif // ! HAS_UNITY
@@ -986,7 +984,7 @@ public static void SDLTick() {
 #else
 
 
-// == Multiplatform (non-Unity) API here ==
+// == Headless (system terminal output) API here ==
 
 
 public static class Qonsole {
