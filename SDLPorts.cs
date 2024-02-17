@@ -441,9 +441,16 @@ namespace SDLPorts {
                 SDL_RenderClear( renderer );
 
                 //QGL.Begin();
-                //QGL.LateBlit( AppleFont.GetTexture(), 100, 100, 100, 100, angle: Time.time * 0.3f );
+                QGL.LateBlit( AppleFont.GetTexture(), 100, 100, 100, 100, angle: Time.time * 5f );
 
                 QGL.LatePrint( Time.deltaTime.ToString("0.00"), 200, 100 );
+                var pts = new Vector2 [] { 
+                    new Vector2( 100, 100 ),
+                    new Vector2( 200, 100 ),
+                    new Vector2( 300, 300 ),
+                    new Vector2( 100, 200 ),
+                };
+                QGL.LateDrawLineLoop( pts );
                 //if ( ! Qonsole.SDLTick( renderer, window ) ) {
                 //    goto done;
                 //}
@@ -606,10 +613,13 @@ done:
 
         public static Texture texture;
 
-        const int MAX_VERTS = 128 * 1024;
-        const int MAX_INDS = 128 * 1024;
+        const int MAX_VERTS = 256 * 1024;
+        const int MAX_INDS = 256 * 1024;
 
         static SDL_Color _color;
+
+        static int _mode;
+
         static int _numVertices;
         static SDL_Vertex [] _vertices = new SDL_Vertex[MAX_VERTS];
 
@@ -617,6 +627,7 @@ done:
         static int [] _indices = new int[MAX_INDS];
         
         public static void Begin( int mode ) {
+            _mode = mode;
             _numVertices = 0;
             _numIndices = 0;
         }
@@ -628,28 +639,28 @@ done:
             if ( _numIndices > MAX_INDS ) {
                 Qonsole.Error( $"Out of indices: {_numIndices}" );
             }
-            //SDL_SetRenderDrawColor( Application.renderer, 255, 255, 255, 255 );
-            //SDL_SetRenderDrawBlendMode( Application.renderer, SDL_BLENDMODE_BLEND );
-            SDL_SetTextureAlphaMod( texture.sdlTex, 0xff );
-            SDL_SetTextureBlendMode( texture.sdlTex, SDL_BLENDMODE_BLEND );
-            SDL_RenderGeometry(
-                Application.renderer,
-                texture.sdlTex,
-                _vertices,
-                _numVertices,
-                _indices,
-                _numIndices
-            );
+            if ( _mode == QUADS ) {
+                //SDL_SetRenderDrawColor( Application.renderer, 255, 255, 255, 255 );
+                //SDL_SetRenderDrawBlendMode( Application.renderer, SDL_BLENDMODE_BLEND );
+                //SDL_SetTextureAlphaMod( texture.sdlTex, 0xff );
+                SDL_SetTextureBlendMode( texture.sdlTex, SDL_BLENDMODE_BLEND );
+                SDL_RenderGeometry( Application.renderer, texture.sdlTex, _vertices, _numVertices,
+                                                                            _indices, _numIndices );
+            } else if ( _mode == LINES ) {
+                for ( int i = 0; i < _numVertices - 1; i++ ) {
+                    SDL_Vertex v0 = _vertices[( i + 0 ) & ( MAX_VERTS - 1 )];
+                    SDL_Vertex v1 = _vertices[( i + 1 ) & ( MAX_VERTS - 1 )];
+                    SDL_FPoint p0 = v0.position;
+                    SDL_FPoint p1 = v1.position;
+                    SDL_SetRenderDrawColor( Application.renderer, v0.color.r, v0.color.g,
+                                                                        v0.color.b, v0.color.a );
+                    SDL_RenderDrawLineF( Application.renderer, p0.x, p0.y, p1.x, p1.y );
+                }
+            }
         }
 
-        public static void Color( Color color ) {
-            var c = new SDL_Color {
-                r = ( byte )( color.r * 255f ),
-                g = ( byte )( color.g * 255f ),
-                b = ( byte )( color.b * 255f ),
-                a = ( byte )( color.a * 255f ),
-            };
-            _color = c;
+        public static void Color( Color32 color ) {
+            _color = new SDL_Color { r = color.r, g = color.g, b = color.b, a = color.a, };
         }
 
         public static void TexCoord( Vector3 uv ) {
@@ -665,8 +676,8 @@ done:
             _vertices[nv].color = _color;
             _numVertices++;
 
-            if ( ( _numVertices & 3 ) == 0 ) {
-                int mask = MAX_INDS - 1;
+            if ( _mode == QUADS && ( _numVertices & 3 ) == 0 ) {
+                const int mask = MAX_INDS - 1;
                 int bv = ( _numVertices - 4 ) & ( MAX_VERTS - 1 );
 
                 _indices[( _numIndices + 0 ) & mask] = bv + 0;

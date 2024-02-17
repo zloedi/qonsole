@@ -24,7 +24,7 @@ static bool _invertedY;
 
 class Late {
     public int context;
-    public Color color;
+    public Color32 color;
 }
 
 class LateLine : Late {
