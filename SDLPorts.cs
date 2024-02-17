@@ -450,7 +450,7 @@ namespace SDLPorts {
                     new Vector2( 300, 300 ),
                     new Vector2( 100, 200 ),
                 };
-                QGL.LateDrawLineLoop( pts );
+                QGL.LateDrawLineLoop( pts, color: Color.yellow );
                 //if ( ! Qonsole.SDLTick( renderer, window ) ) {
                 //    goto done;
                 //}
@@ -647,6 +647,7 @@ done:
                 SDL_RenderGeometry( Application.renderer, texture.sdlTex, _vertices, _numVertices,
                                                                             _indices, _numIndices );
             } else if ( _mode == LINES ) {
+                SDL_SetRenderDrawBlendMode( Application.renderer, SDL_BLENDMODE_BLEND );
                 for ( int i = 0; i < _numVertices - 1; i++ ) {
                     SDL_Vertex v0 = _vertices[( i + 0 ) & ( MAX_VERTS - 1 )];
                     SDL_Vertex v1 = _vertices[( i + 1 ) & ( MAX_VERTS - 1 )];
