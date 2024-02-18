@@ -3198,12 +3198,12 @@ namespace SDL2
 		 * Only available in 2.0.18 or higher.
 		 */
 		[DllImport(nativeLibName, CallingConvention = CallingConvention.Cdecl)]
-		public static extern int SDL_RenderGeometry(
+		public unsafe static extern int SDL_RenderGeometry(
 			IntPtr renderer,
 			IntPtr texture,
-			[In] SDL_Vertex[] vertices,
+			[In] SDL_Vertex *vertices,
 			int num_vertices,
-			[In] int[] indices,
+			[In] int *indices,
 			int num_indices
 		);
 

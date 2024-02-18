@@ -355,7 +355,7 @@ namespace SDLPorts {
         RGBA32,
     }
 
-    public static class Application {
+    public static unsafe class Application {
         public static bool isFocused = true;
         public static bool isPlaying = true;
         public static bool isEditor = false;
@@ -405,9 +405,7 @@ namespace SDLPorts {
                     switch( ev.type ) {
                         case SDL_TEXTINPUT:
                             byte [] b = new byte[SDL_TEXTINPUTEVENT_TEXT_SIZE];
-                            unsafe {
-                                Marshal.Copy( ( IntPtr )ev.text.text, b, 0, b.Length );
-                            }
+                            Marshal.Copy( ( IntPtr )ev.text.text, b, 0, b.Length );
                             string txt = System.Text.Encoding.UTF8.GetString( b, 0, b.Length );
                             OnText( txt );
                             break;
@@ -878,12 +876,10 @@ quit:
         static int _mode;
 
         static int _numVertices;
-
-        static SDL_Vertex [] _vertices = new SDL_Vertex[MAX_VERTS];
-        //static SDL_Vertex *_verts = ( SDL_Vertex * )Marshal.AllocHGlobal( MAX_VERTS * SizeOf<SDL_Vertex>() );
+        static SDL_Vertex *_vertices = ( SDL_Vertex* )Marshal.AllocHGlobal( MAX_VERTS * SizeOf<SDL_Vertex>() );
 
         static int _numIndices;
-        static int [] _indices = new int[MAX_INDS];
+        static int *_indices = ( int* )Marshal.AllocHGlobal( MAX_INDS * SizeOf<int>() );
         
         public static void Begin( int mode ) {
             _mode = mode;
