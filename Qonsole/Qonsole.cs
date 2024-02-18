@@ -890,75 +890,96 @@ public static void GetSize( out int conW, out int conH ) {
 
 #if ! HAS_UNITY
 
-public static bool SDLTick() {
-    while ( SDL_PollEvent( out SDL_Event ev ) != 0 ) {
-        SDL_Keycode code = ev.key.keysym.sym;
-        switch( ev.type ) {
-            case SDL_TEXTINPUT:
-                byte [] b = new byte[SDL_TEXTINPUTEVENT_TEXT_SIZE];
-                unsafe {
-                    Marshal.Copy( ( IntPtr )ev.text.text, b, 0, b.Length );
-                }
-                string txt = System.Text.Encoding.UTF8.GetString( b, 0, b.Length );
-                if ( txt.Length > 0 && txt[0] != '`' && txt[0] != '~' ) {
-                    QON_InsertCommand( txt );
-                }
-                break;
+public static void HandleSDLTextInput( string txt ) {
+    if ( Active && txt.Length > 0 && txt[0] != '`' && txt[0] != '~' ) {
+        QON_InsertCommand( txt );
+    }
+}
 
-            case SDL_KEYDOWN:
-                switch ( code ) {
-                    case SDLK_LEFT:      QON_MoveLeft( 1 );      break;
-                    case SDLK_RIGHT:     QON_MoveRight( 1 );     break;
-                    case SDLK_HOME:      QON_MoveLeft( 99999 );  break;
-                    case SDLK_END:       QON_MoveRight( 99999 ); break;
-                    case SDLK_PAGEUP:    QON_PageUp();           break;
-                    case SDLK_PAGEDOWN:  QON_PageDown();         break;
-                    case SDLK_BACKQUOTE: Toggle();               break;
-                    case SDLK_RETURN:    HandleEnter();          break;
-                    case SDLK_ESCAPE:    HandleEscape();         break;
-                    case SDLK_TAB:       Autocomplete();         break;
-
-                    case SDLK_UP:
-                    case SDLK_DOWN:
-                        HandleUpOrDownArrow( code == SDLK_DOWN );
-                        break;
-
-                    case SDLK_BACKSPACE:
-                        _history = null;
-                        QON_Backspace( 1 );
-                        break;
-
-                    case SDLK_DELETE:
-                        _history = null;
-                        QON_Delete( 1 );
-                        break;
-
-                    default: break;
-                }
-                break;
-
-			case SDL_MOUSEMOTION:
-#if QONSOLE_QUI
-                _mousePosition = new Vector2( ev.motion.x, ev.motion.y );
-#endif
-				break;
-
-            case SDL_MOUSEBUTTONDOWN:
-                break;
-
-            case SDL_MOUSEBUTTONUP:
-                break;
-
-            case SDL_QUIT:
-                return false;
-
-            default:
-                break;
-        }
+public static void HandleSDLKeyDown( KeyCode kc ) {
+    if ( ! Active && kc == KeyCode.BackQuote ) {
+        Toggle();
+        return;
     }
 
-    return true;
+    switch ( kc ) {
+        case KeyCode.LeftArrow:  QON_MoveLeft( 1 );      break;
+        case KeyCode.RightArrow: QON_MoveRight( 1 );     break;
+        case KeyCode.Home:       QON_MoveLeft( 99999 );  break;
+        case KeyCode.End:        QON_MoveRight( 99999 ); break;
+        case KeyCode.PageUp:     QON_PageUp();           break;
+        case KeyCode.PageDown:   QON_PageDown();         break;
+        case KeyCode.BackQuote:  Toggle();               break;
+        case KeyCode.Return:     HandleEnter();          break;
+        case KeyCode.Escape:     HandleEscape();         break;
+        case KeyCode.Tab:        Autocomplete();         break;
+
+        case KeyCode.UpArrow:
+        case KeyCode.DownArrow:
+             HandleUpOrDownArrow( kc == KeyCode.DownArrow );
+             break;
+
+        case KeyCode.Backspace:
+             _history = null;
+             QON_Backspace( 1 );
+             break;
+
+        case KeyCode.Delete:
+             _history = null;
+             QON_Delete( 1 );
+             break;
+
+        default: break;
+    }
 }
+
+public static void HandleSDLMouseMotion( float x, float y ) {
+#if QONSOLE_QUI
+    _mousePosition = new Vector2( x, y );
+#endif
+}
+
+//public static bool UpdateSDL() {
+//    while ( SDL_PollEvent( out SDL_Event ev ) != 0 ) {
+//        SDL_Keycode code = ev.key.keysym.sym;
+//        switch( ev.type ) {
+//            case SDL_TEXTINPUT:
+//                byte [] b = new byte[SDL_TEXTINPUTEVENT_TEXT_SIZE];
+//                unsafe {
+//                    Marshal.Copy( ( IntPtr )ev.text.text, b, 0, b.Length );
+//                }
+//                string txt = System.Text.Encoding.UTF8.GetString( b, 0, b.Length );
+//                HandleSDLTextInput( txt );
+//                break;
+//
+//            case SDL_KEYDOWN:
+//                if ( Input._sdlKeyToKeyCode.TryGetValue( code, out KeyCode kc ) ) {
+//                    HandleSDLKeyDown( kc );
+//                }
+//                break;
+//
+//			case SDL_MOUSEMOTION:
+//                HandleSDLMouseMotion( ev.motion.x, ev.motion.y );
+//				break;
+//
+//            case SDL_MOUSEBUTTONDOWN:
+//                break;
+//
+//            case SDL_MOUSEBUTTONUP:
+//                break;
+//
+//            case SDL_QUIT:
+//                return false;
+//
+//            default:
+//                break;
+//        }
+//    }
+
+    //Update();
+
+    //return true;
+//}
 
 #endif // ! HAS_UNITY
 

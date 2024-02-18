@@ -11,6 +11,7 @@ using System.ComponentModel;
 using System.Reflection;
 using System.Globalization;
 using System;
+using System.Linq.Expressions;
 
 public static class Cellophane {
 
@@ -259,6 +260,9 @@ static void PrintSuggestions( int maxToPrint, string hilight = null,
     }
 }
 
+delegate void dlg1( string [] argv );
+delegate void dlg2( string [] argv, object ctx );
+
 static void CollectItems() {
     var assemblies = AppDomain.CurrentDomain.GetAssemblies();
     List<Type> asmTypes = new List<Type>();
@@ -350,7 +354,6 @@ static void CollectItems() {
         }
 
         MethodInfo [] methods = type.GetMethods( BFS );
-        var objs1 = new object[1];
         var objs2 = new object[2];
         foreach ( MethodInfo mi in methods ) {
             if ( ! ValidSuffixCmd( mi.Name ) ) {
@@ -373,28 +376,23 @@ static void CollectItems() {
                 rawName = type.Name + "." + mi.Name,
             };
             if ( parameters.Length == 1 ) {
+                var d = mi.CreateDelegate( typeof( Action<string[]> ) ) as Action<string[]>;
                 cmd.ActionArgv = (a,context) => {
-                    objs1[0] = a;
-                    mi.Invoke( mi, objs1 );
+                    d( a );
                 };
             } else {
+                var pt = parameters[1].ParameterType;
                 cmd.ActionArgv = (a,context) => {
                     if ( context != null ) {
-                        if ( context.GetType() == parameters[1].ParameterType ) {
+                        if ( context.GetType() == pt ) {
                             objs2[0] = a;
                             objs2[1] = context;
                             mi.Invoke( mi, objs2 );
                         } else {
-                            Error( cmd.name
-                                    + " requires '"
-                                    + parameters[1].ParameterType
-                                    + "' context but got " + context.GetType() );
+                            Error( $"cmd.name requires '{pt}' context but got '{context.GetType()}'" );
                         }
                     } else {
-                        Error( cmd.name
-                                + " requires '"
-                                + parameters[1].ParameterType
-                                + "' context but got null." );
+                        Error( $"cmd.name requires '{pt}' context but got null" );
                     }
                 };
             }

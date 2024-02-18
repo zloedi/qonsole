@@ -1,4 +1,4 @@
-#if UNITY_EDITOR || UNITY_STANDALONE
+#if true // UNITY_EDITOR || UNITY_STANDALONE
 
 using GalliumMath;
 using SDLPorts;

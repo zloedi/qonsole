@@ -8,6 +8,7 @@ using static SDL2.SDL.SDL_WindowFlags;
 using static SDL2.SDL.SDL_EventType;
 using static SDL2.SDL.SDL_TextureAccess;
 using static SDL2.SDL.SDL_BlendMode;
+using static SDL2.SDL.SDL_Keycode;
 
 namespace SDLPorts {
     public enum KeyCode {
@@ -365,68 +366,99 @@ namespace SDLPorts {
         public static long nowMs;
         public static int deltaMs;
 
-        public static void Run( string [] argv, Action init, Action run, Action done ) {
+        public static Action<string> Log = s => {};
+        public static Action<string> Error = s => {};
+        
+        public static Action Init = () => {};
+        public static Action Tick = () => {};
+        public static Action Done = () => {};
+        public static Action<string> OnText = s => {};
+        public static Action<KeyCode> OnKey = kc => {};
+
+        public static void Run( string [] argv ) {
             SDL_Init( SDL_INIT_VIDEO );
             SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE;
             SDL_CreateWindowAndRenderer( 1024, 768, flags, out window, out renderer );
-            SDL_SetWindowTitle( window, "Radical Rumble" );
+            SDL_GetRendererInfo( renderer, out SDL_RendererInfo info );
+            SDL_SetWindowTitle( window, $"Radical Rumble {UTF8_ToManaged( info.name )}" );
+            
+            //for ( int i = 0; i < SDL_GetNumRenderDrivers(); i++ ) {
+            {
+                //SDL_GetRenderDriverInfo( i, out SDL_RendererInfo info );
+            }
 
-            Qonsole.Init();
-            Qonsole.Start();
-
-            KeyBinds.Log = s => Qonsole.Log( "Keybinds: " + s );
-            KeyBinds.Error = s => Qonsole.Error( "Keybinds: " + s );
-
-            // done in the qonsole too
-            //QGL.Start();
-
-            Qonsole.Log( Guid.NewGuid() );
-
-            QGL.Log = o => Qonsole.Log( "QGL: " + o );
-            QGL.Error = s => Qonsole.Error( "QGL: " + s );
+            Init();
 
             while ( true ) {
                 SDL_GetWindowSize( window, out int w, out int h );
                 Screen.width = w;
                 Screen.height = h;
-
                 Time.Tick();
-
-                if ( ! Qonsole.SDLTick() ) {
-                    break;
-                }
 
                 //SDL_SetRenderDrawColor( renderer, 40, 45, 50, 255 );
                 //SDL_RenderClear( renderer );
 
-                //QGL.Begin();
+                Array.Clear( Input.keyEvents, 0, Input.keyEvents.Length );
 
-                Qonsole.Update();
+                while ( SDL_PollEvent( out SDL_Event ev ) != 0 ) {
+                    SDL_Keycode code = ev.key.keysym.sym;
+                    switch( ev.type ) {
+                        case SDL_TEXTINPUT:
+                            byte [] b = new byte[SDL_TEXTINPUTEVENT_TEXT_SIZE];
+                            unsafe {
+                                Marshal.Copy( ( IntPtr )ev.text.text, b, 0, b.Length );
+                            }
+                            string txt = System.Text.Encoding.UTF8.GetString( b, 0, b.Length );
+                            OnText( txt );
+                            break;
 
-                QGL.LateBlit( AppleFont.GetTexture(), 100, 100, 100, 100, angle: Time.time * 5f );
+                        case SDL_KEYDOWN: {
+                            if ( Input._sdlKeyToKeyCode.TryGetValue( code, out KeyCode kc ) ) {
+                                OnKey( kc );
+                                if ( kc == KeyCode.None ) {
+                                    Error( $"Can't find key map for {code}" );
+                                }
+                                Input.keyEvents[( int )kc * 2 + 0] = 1;
+                            } }
+                            break;
 
-                QGL.LatePrint( Time.deltaTime.ToString("0.00"), 200, 100 );
-                var pts = new Vector2 [] { 
-                    new Vector2( 100, 100 ),
-                    new Vector2( 200, 100 ),
-                    new Vector2( 300, 300 ),
-                    new Vector2( 100, 200 ),
-                };
-                QGL.LateDrawLineLoop( pts, color: Color.yellow );
-                //if ( ! Qonsole.SDLTick( renderer, window ) ) {
-                //    goto done;
-                //}
+                        case SDL_KEYUP: {
+                            if ( Input._sdlKeyToKeyCode.TryGetValue( code, out KeyCode kc ) ) {
+                                if ( kc == KeyCode.None ) {
+                                    Error( $"Can't find key map for {code}" );
+                                }
+                                Input.keyEvents[( int )kc * 2 + 1] = 1;
+                            } }
+                            break;
 
-                //QON_Draw( ( w - CON_X * 2 ) / cellW, ( h - CON_Y * 2 ) / cellH );
-                //ZH_UI_Begin( mouseX, mouseY );
-                //ZH_UI_End();
+                        case SDL_MOUSEMOTION:
+                            Input.mousePosition = new Vector2( ev.motion.x,
+                                                    // we try to emulate unity mouse position ffs
+                                                    Screen.height - ev.motion.y );
+                            break;
 
-                //QGL.End();
-                Qonsole.RenderGL();
+                        case SDL_MOUSEBUTTONDOWN:
+                            break;
+
+                        case SDL_MOUSEBUTTONUP:
+                            break;
+
+                        case SDL_QUIT:
+                            goto quit;
+
+                        default:
+                            break;
+                    }
+                }
+
+                Tick();
+
                 SDL_RenderPresent( renderer );
             }
 
-            Qonsole.OnApplicationQuit();
+quit:
+
+            Done();
 
             SDL_DestroyRenderer( renderer );
             SDL_DestroyWindow( window );
@@ -464,8 +496,276 @@ namespace SDLPorts {
 
     public static class Input {
         public static Vector2 mousePosition;
-        public static bool GetKeyDown( KeyCode kc ) { return false; }
-        public static bool GetKeyUp( KeyCode kc ) { return false; }
+
+        public static bool GetKeyDown( KeyCode kc ) { return keyEvents[( int )kc * 2 + 0] != 0; }
+        public static bool GetKeyUp( KeyCode kc ) { return keyEvents[( int )kc * 2 + 1] != 0; }
+
+        // make it private
+        public static readonly Dictionary<SDL_Keycode,KeyCode> _sdlKeyToKeyCode
+                                                            = new Dictionary<SDL_Keycode,KeyCode>();
+        public static readonly KeyCode [] AllKeyCodes
+                                                = ( KeyCode[] )Enum.GetValues( typeof( KeyCode ) );
+        public static byte [] keyEvents = new byte[AllKeyCodes.Length * 2];
+
+        static Input() {
+            void sdlK( SDL_Keycode sdlk, KeyCode k ) {
+                _sdlKeyToKeyCode[sdlk] = k;
+            }
+
+			sdlK( SDLK_UNKNOWN, KeyCode.None );
+
+			sdlK( SDLK_RETURN, KeyCode.Return );
+			sdlK( SDLK_ESCAPE, KeyCode.Escape );
+			sdlK( SDLK_BACKSPACE, KeyCode.Backspace );
+			sdlK( SDLK_TAB, KeyCode.Tab );
+			sdlK( SDLK_SPACE, KeyCode.Space );
+			sdlK( SDLK_EXCLAIM, KeyCode.Exclaim );
+			sdlK( SDLK_QUOTEDBL, KeyCode.DoubleQuote );
+			sdlK( SDLK_HASH, KeyCode.Hash );
+			sdlK( SDLK_PERCENT, KeyCode.None );
+			sdlK( SDLK_DOLLAR, KeyCode.Dollar );
+			sdlK( SDLK_AMPERSAND, KeyCode.Ampersand );
+			sdlK( SDLK_QUOTE, KeyCode.Quote );
+			sdlK( SDLK_LEFTPAREN, KeyCode.LeftParen );
+			sdlK( SDLK_RIGHTPAREN, KeyCode.RightParen );
+			sdlK( SDLK_ASTERISK, KeyCode.Asterisk );
+			sdlK( SDLK_PLUS, KeyCode.Plus );
+			sdlK( SDLK_COMMA, KeyCode.Comma );
+			sdlK( SDLK_MINUS, KeyCode.Minus );
+			sdlK( SDLK_PERIOD, KeyCode.Period );
+			sdlK( SDLK_SLASH, KeyCode.Slash );
+			sdlK( SDLK_0, KeyCode.Alpha0 );
+			sdlK( SDLK_1, KeyCode.Alpha1 );
+			sdlK( SDLK_2, KeyCode.Alpha2 );
+			sdlK( SDLK_3, KeyCode.Alpha3 );
+			sdlK( SDLK_4, KeyCode.Alpha4 );
+			sdlK( SDLK_5, KeyCode.Alpha5 );
+			sdlK( SDLK_6, KeyCode.Alpha6 );
+			sdlK( SDLK_7, KeyCode.Alpha7 );
+			sdlK( SDLK_8, KeyCode.Alpha8 );
+			sdlK( SDLK_9, KeyCode.Alpha9 );
+			sdlK( SDLK_COLON, KeyCode.Colon );
+			sdlK( SDLK_SEMICOLON, KeyCode.Semicolon );
+			sdlK( SDLK_LESS, KeyCode.Less );
+			sdlK( SDLK_EQUALS, KeyCode.Equals );
+			sdlK( SDLK_GREATER, KeyCode.None );
+			sdlK( SDLK_QUESTION, KeyCode.Question );
+			sdlK( SDLK_AT, KeyCode.At );
+			sdlK( SDLK_LEFTBRACKET, KeyCode.LeftBracket );
+			sdlK( SDLK_BACKSLASH, KeyCode.Backslash );
+			sdlK( SDLK_RIGHTBRACKET, KeyCode.RightBracket );
+			sdlK( SDLK_CARET, KeyCode.Caret );
+			sdlK( SDLK_UNDERSCORE, KeyCode.Underscore );
+			sdlK( SDLK_BACKQUOTE, KeyCode.BackQuote );
+			sdlK( SDLK_a, KeyCode.A );
+			sdlK( SDLK_b, KeyCode.B );
+			sdlK( SDLK_c, KeyCode.C );
+			sdlK( SDLK_d, KeyCode.D );
+			sdlK( SDLK_e, KeyCode.E );
+			sdlK( SDLK_f, KeyCode.F );
+			sdlK( SDLK_g, KeyCode.G );
+			sdlK( SDLK_h, KeyCode.H );
+			sdlK( SDLK_i, KeyCode.I );
+			sdlK( SDLK_j, KeyCode.J );
+			sdlK( SDLK_k, KeyCode.K );
+			sdlK( SDLK_l, KeyCode.L );
+			sdlK( SDLK_m, KeyCode.M );
+			sdlK( SDLK_n, KeyCode.N );
+			sdlK( SDLK_o, KeyCode.O );
+			sdlK( SDLK_p, KeyCode.P );
+			sdlK( SDLK_q, KeyCode.Q );
+			sdlK( SDLK_r, KeyCode.R );
+			sdlK( SDLK_s, KeyCode.S );
+			sdlK( SDLK_t, KeyCode.T );
+			sdlK( SDLK_u, KeyCode.U );
+			sdlK( SDLK_v, KeyCode.V );
+			sdlK( SDLK_w, KeyCode.W );
+			sdlK( SDLK_x, KeyCode.X );
+			sdlK( SDLK_y, KeyCode.Y );
+			sdlK( SDLK_z, KeyCode.Z );
+
+			sdlK( SDLK_CAPSLOCK, KeyCode.CapsLock );
+
+			sdlK( SDLK_F1, KeyCode.F1 );
+			sdlK( SDLK_F2, KeyCode.F2 );
+			sdlK( SDLK_F3, KeyCode.F3 );
+			sdlK( SDLK_F4, KeyCode.F4 );
+			sdlK( SDLK_F5, KeyCode.F5 );
+			sdlK( SDLK_F6, KeyCode.F6 );
+			sdlK( SDLK_F7, KeyCode.F7 );
+			sdlK( SDLK_F8, KeyCode.F8 );
+			sdlK( SDLK_F9, KeyCode.F9 );
+			sdlK( SDLK_F10, KeyCode.F10 );
+			sdlK( SDLK_F11, KeyCode.F11 );
+			sdlK( SDLK_F12, KeyCode.F12 );
+
+			sdlK( SDLK_PRINTSCREEN, KeyCode.None );
+			sdlK( SDLK_SCROLLLOCK, KeyCode.ScrollLock );
+			sdlK( SDLK_PAUSE, KeyCode.Pause );
+			sdlK( SDLK_INSERT, KeyCode.Insert );
+			sdlK( SDLK_HOME, KeyCode.Home );
+			sdlK( SDLK_PAGEUP, KeyCode.PageUp );
+			sdlK( SDLK_DELETE, KeyCode.Delete );
+			sdlK( SDLK_END, KeyCode.End );
+			sdlK( SDLK_PAGEDOWN, KeyCode.PageDown );
+			sdlK( SDLK_RIGHT, KeyCode.RightArrow );
+			sdlK( SDLK_LEFT, KeyCode.LeftArrow );
+			sdlK( SDLK_DOWN, KeyCode.DownArrow );
+			sdlK( SDLK_UP, KeyCode.UpArrow );
+
+			sdlK( SDLK_NUMLOCKCLEAR, KeyCode.Numlock );
+			sdlK( SDLK_KP_DIVIDE, KeyCode.KeypadDivide );
+			sdlK( SDLK_KP_MULTIPLY, KeyCode.KeypadMultiply );
+			sdlK( SDLK_KP_MINUS, KeyCode.KeypadMinus );
+			sdlK( SDLK_KP_PLUS, KeyCode.KeypadPlus );
+			sdlK( SDLK_KP_ENTER, KeyCode.KeypadEnter );
+			sdlK( SDLK_KP_1, KeyCode.Keypad0 );
+			sdlK( SDLK_KP_2, KeyCode.Keypad1 );
+			sdlK( SDLK_KP_3, KeyCode.Keypad2 );
+			sdlK( SDLK_KP_4, KeyCode.Keypad3 );
+			sdlK( SDLK_KP_5, KeyCode.Keypad4 );
+			sdlK( SDLK_KP_6, KeyCode.Keypad5 );
+			sdlK( SDLK_KP_7, KeyCode.Keypad6 );
+			sdlK( SDLK_KP_8, KeyCode.Keypad7 );
+			sdlK( SDLK_KP_9, KeyCode.Keypad8 );
+			sdlK( SDLK_KP_0, KeyCode.Keypad9 );
+			sdlK( SDLK_KP_PERIOD, KeyCode.KeypadPeriod );
+
+			sdlK( SDLK_APPLICATION, KeyCode.None );
+			sdlK( SDLK_POWER, KeyCode.None );
+			sdlK( SDLK_KP_EQUALS, KeyCode.None );
+			sdlK( SDLK_F13, KeyCode.None );
+			sdlK( SDLK_F14, KeyCode.None );
+			sdlK( SDLK_F15, KeyCode.None );
+			sdlK( SDLK_F16, KeyCode.None );
+			sdlK( SDLK_F17, KeyCode.None );
+			sdlK( SDLK_F18, KeyCode.None );
+			sdlK( SDLK_F19, KeyCode.None );
+			sdlK( SDLK_F20, KeyCode.None );
+			sdlK( SDLK_F21, KeyCode.None );
+			sdlK( SDLK_F22, KeyCode.None );
+			sdlK( SDLK_F23, KeyCode.None );
+			sdlK( SDLK_F24, KeyCode.None );
+			sdlK( SDLK_EXECUTE, KeyCode.None );
+			sdlK( SDLK_HELP, KeyCode.None );
+			sdlK( SDLK_MENU, KeyCode.None );
+			sdlK( SDLK_SELECT, KeyCode.None );
+			sdlK( SDLK_STOP, KeyCode.None );
+			sdlK( SDLK_AGAIN, KeyCode.None );
+			sdlK( SDLK_UNDO, KeyCode.None );
+			sdlK( SDLK_CUT, KeyCode.None );
+			sdlK( SDLK_COPY, KeyCode.None );
+			sdlK( SDLK_PASTE, KeyCode.None );
+			sdlK( SDLK_FIND, KeyCode.None );
+			sdlK( SDLK_MUTE, KeyCode.None );
+			sdlK( SDLK_VOLUMEUP, KeyCode.None );
+			sdlK( SDLK_VOLUMEDOWN, KeyCode.None );
+			sdlK( SDLK_KP_COMMA, KeyCode.None );
+			sdlK( SDLK_KP_EQUALSAS400, KeyCode.None );
+
+			sdlK( SDLK_ALTERASE, KeyCode.None );
+			sdlK( SDLK_SYSREQ, KeyCode.None );
+			sdlK( SDLK_CANCEL, KeyCode.None );
+			sdlK( SDLK_CLEAR, KeyCode.None );
+			sdlK( SDLK_PRIOR, KeyCode.None );
+			sdlK( SDLK_RETURN2, KeyCode.None );
+			sdlK( SDLK_SEPARATOR, KeyCode.None );
+			sdlK( SDLK_OUT, KeyCode.None );
+			sdlK( SDLK_OPER, KeyCode.None );
+			sdlK( SDLK_CLEARAGAIN, KeyCode.None );
+			sdlK( SDLK_CRSEL, KeyCode.None );
+			sdlK( SDLK_EXSEL, KeyCode.None );
+
+			sdlK( SDLK_KP_00, KeyCode.None );
+			sdlK( SDLK_KP_000, KeyCode.None );
+			sdlK( SDLK_THOUSANDSSEPARATOR, KeyCode.None );
+			sdlK( SDLK_DECIMALSEPARATOR, KeyCode.None );
+			sdlK( SDLK_CURRENCYUNIT, KeyCode.None );
+			sdlK( SDLK_CURRENCYSUBUNIT, KeyCode.None );
+			sdlK( SDLK_KP_LEFTPAREN, KeyCode.None );
+			sdlK( SDLK_KP_RIGHTPAREN, KeyCode.None );
+			sdlK( SDLK_KP_LEFTBRACE, KeyCode.None );
+			sdlK( SDLK_KP_RIGHTBRACE, KeyCode.None );
+			sdlK( SDLK_KP_TAB, KeyCode.None );
+			sdlK( SDLK_KP_BACKSPACE, KeyCode.None );
+			sdlK( SDLK_KP_A, KeyCode.None );
+			sdlK( SDLK_KP_B, KeyCode.None );
+			sdlK( SDLK_KP_C, KeyCode.None );
+			sdlK( SDLK_KP_D, KeyCode.None );
+			sdlK( SDLK_KP_E, KeyCode.None );
+			sdlK( SDLK_KP_F, KeyCode.None );
+			sdlK( SDLK_KP_XOR, KeyCode.None );
+			sdlK( SDLK_KP_POWER, KeyCode.None );
+			sdlK( SDLK_KP_PERCENT, KeyCode.None );
+			sdlK( SDLK_KP_LESS, KeyCode.None );
+			sdlK( SDLK_KP_GREATER, KeyCode.None );
+			sdlK( SDLK_KP_AMPERSAND, KeyCode.None );
+			sdlK( SDLK_KP_DBLAMPERSAND, KeyCode.None );
+			sdlK( SDLK_KP_VERTICALBAR, KeyCode.None );
+			sdlK( SDLK_KP_DBLVERTICALBAR, KeyCode.None );
+			sdlK( SDLK_KP_COLON, KeyCode.None );
+			sdlK( SDLK_KP_HASH, KeyCode.None );
+			sdlK( SDLK_KP_SPACE, KeyCode.None );
+			sdlK( SDLK_KP_AT, KeyCode.None );
+			sdlK( SDLK_KP_EXCLAM, KeyCode.None );
+			sdlK( SDLK_KP_MEMSTORE, KeyCode.None );
+			sdlK( SDLK_KP_MEMRECALL, KeyCode.None );
+			sdlK( SDLK_KP_MEMCLEAR, KeyCode.None );
+			sdlK( SDLK_KP_MEMADD, KeyCode.None );
+			sdlK( SDLK_KP_MEMSUBTRACT, KeyCode.None );
+			sdlK( SDLK_KP_MEMMULTIPLY, KeyCode.None );
+			sdlK( SDLK_KP_MEMDIVIDE, KeyCode.None );
+			sdlK( SDLK_KP_PLUSMINUS, KeyCode.None );
+			sdlK( SDLK_KP_CLEAR, KeyCode.None );
+			sdlK( SDLK_KP_CLEARENTRY, KeyCode.None );
+			sdlK( SDLK_KP_BINARY, KeyCode.None );
+			sdlK( SDLK_KP_OCTAL, KeyCode.None );
+			sdlK( SDLK_KP_DECIMAL, KeyCode.None );
+			sdlK( SDLK_KP_HEXADECIMAL, KeyCode.None );
+
+			sdlK( SDLK_LCTRL, KeyCode.LeftControl );
+			sdlK( SDLK_LSHIFT, KeyCode.LeftShift );
+			sdlK( SDLK_LALT, KeyCode.LeftAlt );
+			sdlK( SDLK_LGUI, KeyCode.None );
+			sdlK( SDLK_RCTRL, KeyCode.RightControl );
+			sdlK( SDLK_RSHIFT, KeyCode.RightShift );
+			sdlK( SDLK_RALT, KeyCode.RightAlt );
+			sdlK( SDLK_RGUI, KeyCode.None );
+
+			sdlK( SDLK_MODE, KeyCode.None );
+
+			sdlK( SDLK_AUDIONEXT, KeyCode.None );
+			sdlK( SDLK_AUDIOPREV, KeyCode.None );
+			sdlK( SDLK_AUDIOSTOP, KeyCode.None );
+			sdlK( SDLK_AUDIOPLAY, KeyCode.None );
+			sdlK( SDLK_AUDIOMUTE, KeyCode.None );
+			sdlK( SDLK_MEDIASELECT, KeyCode.None );
+			sdlK( SDLK_WWW, KeyCode.None );
+			sdlK( SDLK_MAIL, KeyCode.None );
+			sdlK( SDLK_CALCULATOR, KeyCode.None );
+			sdlK( SDLK_COMPUTER, KeyCode.None );
+			sdlK( SDLK_AC_SEARCH, KeyCode.None );
+			sdlK( SDLK_AC_HOME, KeyCode.None );
+			sdlK( SDLK_AC_BACK, KeyCode.None );
+			sdlK( SDLK_AC_FORWARD, KeyCode.None );
+			sdlK( SDLK_AC_STOP, KeyCode.None );
+			sdlK( SDLK_AC_REFRESH, KeyCode.None );
+			sdlK( SDLK_AC_BOOKMARKS, KeyCode.None );
+
+			sdlK( SDLK_BRIGHTNESSDOWN, KeyCode.None );
+			sdlK( SDLK_BRIGHTNESSUP, KeyCode.None );
+			sdlK( SDLK_DISPLAYSWITCH, KeyCode.None );
+			sdlK( SDLK_KBDILLUMTOGGLE, KeyCode.None );
+			sdlK( SDLK_KBDILLUMDOWN, KeyCode.None );
+			sdlK( SDLK_KBDILLUMUP, KeyCode.None );
+			sdlK( SDLK_EJECT, KeyCode.None );
+			sdlK( SDLK_SLEEP, KeyCode.None );
+			sdlK( SDLK_APP1, KeyCode.None );
+			sdlK( SDLK_APP2, KeyCode.None );
+
+			sdlK( SDLK_AUDIOREWIND, KeyCode.None );
+			sdlK( SDLK_AUDIOFASTFORWARD, KeyCode.None );
+        }
     }
 
     public static class Screen {
@@ -564,7 +864,7 @@ namespace SDLPorts {
         public HideFlags hideFlags;
     }
 
-    public static class GL {
+    public static unsafe class GL {
         public const int QUADS = 0;
         public const int LINES = 1;
 
@@ -578,7 +878,9 @@ namespace SDLPorts {
         static int _mode;
 
         static int _numVertices;
+
         static SDL_Vertex [] _vertices = new SDL_Vertex[MAX_VERTS];
+        //static SDL_Vertex *_verts = ( SDL_Vertex * )Marshal.AllocHGlobal( MAX_VERTS * SizeOf<SDL_Vertex>() );
 
         static int _numIndices;
         static int [] _indices = new int[MAX_INDS];
@@ -591,10 +893,10 @@ namespace SDLPorts {
 
         public static void End() {
             if ( _numVertices > MAX_VERTS ) {
-                Qonsole.Error( $"Out of vertices: {_numVertices}" );
+                Application.Error( $"Out of vertices: {_numVertices}" );
             }
             if ( _numIndices > MAX_INDS ) {
-                Qonsole.Error( $"Out of indices: {_numIndices}" );
+                Application.Error( $"Out of indices: {_numIndices}" );
             }
             if ( _mode == QUADS ) {
                 //SDL_SetRenderDrawColor( Application.renderer, 255, 255, 255, 255 );
