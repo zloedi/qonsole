@@ -4,7 +4,7 @@
 //#define HEXES_QONSOLE
 
 #if UNITY_STANDALONE || UNITY_2021_0_OR_NEWER
-//#define HAS_UNITY
+#define HAS_UNITY
 #endif
 
 using System;
@@ -13,7 +13,7 @@ using System.Collections.Generic;
 
 #if HAS_UNITY
 using UnityEngine;
-#else
+#elif SDL
 using GalliumMath;
 using SDLPorts;
 #endif
@@ -150,7 +150,7 @@ public static Vector2Int EvenRToAxial( int col, int row ) {
 // == hexes visual stuff ==
 
 
-#if true //HAS_UNITY
+#if HAS_UNITY || SDL
 
 public static int hexSpriteWidth;
 public static int hexSpriteHeight;

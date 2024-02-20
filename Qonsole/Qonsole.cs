@@ -1,5 +1,5 @@
 #if UNITY_STANDALONE || UNITY_2021_0_OR_NEWER
-//#define HAS_UNITY
+#define HAS_UNITY
 #endif
 
 using System;
@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 
-#if HAS_UNITY || true
+#if HAS_UNITY || SDL
 
 //#define QONSOLE_BOOTSTRAP // if this is defined, the console will try to bootstrap itself
 //#define QONSOLE_BOOTSTRAP_EDITOR // if this is defined, the console will try to bootstrap itself in the editor
@@ -19,7 +19,7 @@ using System.IO;
 using UnityEngine;
 using QObject = UnityEngine.Object;
 
-#else
+#elif SDL
 
 using static SDL2.SDL;
 using static SDL2.SDL.SDL_WindowFlags;
@@ -901,7 +901,7 @@ public static void GetSize( out int conW, out int conH ) {
     conH = maxH / cH;
 }
 
-#if ! HAS_UNITY
+#if SDL
 
 public static void HandleSDLTextInput( string txt ) {
     if ( Active && txt.Length > 0 && txt[0] != '`' && txt[0] != '~' ) {
@@ -952,49 +952,7 @@ public static void HandleSDLMouseMotion( float x, float y ) {
 #endif
 }
 
-//public static bool UpdateSDL() {
-//    while ( SDL_PollEvent( out SDL_Event ev ) != 0 ) {
-//        SDL_Keycode code = ev.key.keysym.sym;
-//        switch( ev.type ) {
-//            case SDL_TEXTINPUT:
-//                byte [] b = new byte[SDL_TEXTINPUTEVENT_TEXT_SIZE];
-//                unsafe {
-//                    Marshal.Copy( ( IntPtr )ev.text.text, b, 0, b.Length );
-//                }
-//                string txt = System.Text.Encoding.UTF8.GetString( b, 0, b.Length );
-//                HandleSDLTextInput( txt );
-//                break;
-//
-//            case SDL_KEYDOWN:
-//                if ( Input._sdlKeyToKeyCode.TryGetValue( code, out KeyCode kc ) ) {
-//                    HandleSDLKeyDown( kc );
-//                }
-//                break;
-//
-//			case SDL_MOUSEMOTION:
-//                HandleSDLMouseMotion( ev.motion.x, ev.motion.y );
-//				break;
-//
-//            case SDL_MOUSEBUTTONDOWN:
-//                break;
-//
-//            case SDL_MOUSEBUTTONUP:
-//                break;
-//
-//            case SDL_QUIT:
-//                return false;
-//
-//            default:
-//                break;
-//        }
-//    }
-
-    //Update();
-
-    //return true;
-//}
-
-#endif // ! HAS_UNITY
+#endif // SDL
 
 
 } // class Qonsole

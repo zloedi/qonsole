@@ -1,9 +1,11 @@
-#if UNITY_STANDALONE || UNITY_2021_1_OR_NEWER
-//#define HAS_UNITY
-#endif
+#if UNITY_STANDALONE || UNITY_2021_1_OR_NEWER || SDL
 
+#if SDL
 using GalliumMath;
 using SDLPorts;
+#else
+using UnityEngine;
+#endif
 
 // This file contains the nokia-cellphone font baked in a bitmap, along with the character coordinates inside the bitmap.
 // The ttf could be found here: https://www.dafont.com/nokia-cellphone.font
@@ -900,3 +902,5 @@ public static Texture2D GetTexture() {
 
 
 }
+
+#endif

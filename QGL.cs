@@ -1,14 +1,16 @@
-#if UNITY_STANDALONE || UNITY_2021_1_OR_NEWER
-//#define HAS_UNITY
-#endif
+#if UNITY_STANDALONE || UNITY_2021_1_OR_NEWER || SDL
 
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
-using SDLPorts;
 
+#if SDL
+using SDLPorts;
 using GalliumMath;
+#else
+using UnityEngine;
+#endif
 
 public static class QGL {
 
@@ -834,3 +836,6 @@ public static void End( bool skipLateFlush = false ) {
 
 
 }
+
+
+#endif

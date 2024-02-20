@@ -1,7 +1,11 @@
-#if true // UNITY_EDITOR || UNITY_STANDALONE
+#if UNITY_EDITOR || UNITY_STANDALONE || SDL
 
+#if SDL
 using GalliumMath;
 using SDLPorts;
+#else
+using UnityEngine;
+#endif
 
 public static class CodePage437 {
     public const int FontTexSide = 192;

@@ -1,8 +1,13 @@
-#if true // UNITY_STANDALONE || UNITY_2021_0_OR_NEWER
+#if UNITY_STANDALONE || UNITY_2021_0_OR_NEWER || SDL
 
 using System;
 using System.Collections.Generic;
+
+#if UNITY_STANDALONE
+using UnityEngine;
+#else
 using SDLPorts;
+#endif
 
 public static class KeyBinds {
 
