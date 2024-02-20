@@ -15,9 +15,12 @@ using System.IO;
 //#define QONSOLE_KEYBINDS // if this is defined, use the KeyBinds inside the Qonsole loop
 
 #if HAS_UNITY
+
 using UnityEngine;
 using QObject = UnityEngine.Object;
+
 #else
+
 using static SDL2.SDL;
 using static SDL2.SDL.SDL_WindowFlags;
 using static SDL2.SDL.SDL_EventType;
@@ -28,6 +31,7 @@ using System.Runtime.InteropServices;
 using GalliumMath;
 using SDLPorts;
 using QObject = System.Object;
+
 #endif
 
 using static Qonche;
@@ -179,7 +183,12 @@ public static Action onGUI_f = () => {};
 // we hope it is the main thread?
 public static readonly int ThreadID = System.Threading.Thread.CurrentThread.ManagedThreadId;
 static bool _isEditor => Application.isEditor;
-static string _dataPath => Application.persistentDataPath;
+static string _dataPath =>
+#if HAS_UNITY
+    Application.persistentDataPath;
+#else
+    System.IO.Path.GetDirectoryName( System.Reflection.Assembly.GetEntryAssembly().Location );
+#endif
 static float _textDx => QGL.TextDx;
 static float _textDy => QGL.TextDy;
 static int _cursorChar => QGL.GetCursorChar();
@@ -1026,9 +1035,9 @@ public static void Init( int configVersion = 0 ) {
     }
 
     string config = string.Empty;
-    string dir = System.IO.Path.GetDirectoryName(
-                    System.Reflection.Assembly.GetEntryAssembly().Location
-                );
+    string exePath = System.Reflection.Assembly.GetEntryAssembly().Location;
+    Log( $"exe path: '{exePath}'" );
+    string dir = System.IO.Path.GetDirectoryName( exePath );
     _configPath = Path.Combine( dir, fnameCfg );
     Log( $"Qonsole config storage: '{_configPath}'" );
     try {
