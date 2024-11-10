@@ -18,6 +18,8 @@ public static Action<object> Log = o => {};
 public static Action<string> Error = s => {};
 
 public static float ScreenHeight { get; private set; }
+public static float ScreenWidth { get; private set; }
+public static int CursorChar => _currentFontInfo.cursorChar;
 
 static Texture2D _texWhite = Texture2D.whiteTexture;
 static Material _material;
@@ -116,6 +118,8 @@ class FontInfo {
     public int numRows;
     public int charWidth;
     public int charHeight;
+    public int cursorChar;
+    public bool outlined;
 }
 
 static int _currentFont => _allFonts == null ? 0 : Font_cvar % _allFonts.Length;
@@ -133,6 +137,7 @@ static FontInfo [] _allFonts;
 static int CharSpacingX_cvar = -3;
 static int CharSpacingY_cvar = 3;
 static int Font_cvar = 0;
+static int ShowFontTexture_cvar = 0;
 
 public static float pixelsPerPoint = 1;
 
@@ -149,18 +154,6 @@ public static Color TagToCol( string tag ) {
     return new Color( ( ( rgb[0] << 4 ) | rgb[1] ) / 255.999f,
                       ( ( rgb[2] << 4 ) | rgb[3] ) / 255.999f,
                       ( ( rgb[4] << 4 ) | rgb[5] ) / 255.999f );
-}
-
-public static int GetCursorChar() {
-    return _currentFont == 0 ? 127 : 0xdb;
-}
-
-public static float ScreenWidth() {
-    Camera cam = _camera ? _camera : Camera.main;
-    if ( cam ) {
-        return cam.pixelWidth;
-    }
-    return Screen.width;
 }
 
 public static bool Start( bool invertedY = false ) {
@@ -316,17 +309,19 @@ public static void DrawTextWithOutline( string s, float x, float y, Color color,
 public static void DrawScreenCharWithOutline( int c, float screenX, float screenY, Color color,
                                                                                 float scale = 1 ) { 
     // == outline ==
-    //GL.Color( new Color( 0, 0, 0, 1 * ( color.a * color.a * color.a ) ) );
-    //DrawScreenChar( c, screenX + scale, screenY +     0, scale );
-    //DrawScreenChar( c, screenX + scale, screenY + scale, scale );
-    //DrawScreenChar( c, screenX +     0, screenY + scale, scale );
+    if ( ! _currentFontInfo.outlined ) {
+        GL.Color( new Color( 0, 0, 0, 1 * ( color.a * color.a * color.a ) ) );
+        DrawScreenChar( c, screenX + scale, screenY +     0, scale );
+        DrawScreenChar( c, screenX + scale, screenY + scale, scale );
+        DrawScreenChar( c, screenX +     0, screenY + scale, scale );
 
-    //DrawScreenChar( c, screenX - scale, screenY -     0, scale );
-    //DrawScreenChar( c, screenX - scale, screenY - scale, scale );
-    //DrawScreenChar( c, screenX -     0, screenY - scale, scale );
+        DrawScreenChar( c, screenX - scale, screenY -     0, scale );
+        DrawScreenChar( c, screenX - scale, screenY - scale, scale );
+        DrawScreenChar( c, screenX -     0, screenY - scale, scale );
 
-    //DrawScreenChar( c, screenX + scale, screenY - scale, scale );
-    //DrawScreenChar( c, screenX - scale, screenY + scale, scale );
+        DrawScreenChar( c, screenX + scale, screenY - scale, scale );
+        DrawScreenChar( c, screenX - scale, screenY + scale, scale );
+    }
 
     // == actual character ==
     GL.Color( color );
@@ -346,6 +341,7 @@ public static void SetFontTexture() {
                 numRows    = AppleFont.APPLEIIF_ROWS,
                 charWidth  = AppleFont.APPLEIIF_CW,
                 charHeight = AppleFont.APPLEIIF_CH,
+                cursorChar = 127,
             },
 
             new FontInfo {
@@ -354,6 +350,7 @@ public static void SetFontTexture() {
                 numRows    = CodePage437.FontSz,
                 charWidth  = CodePage437.CharSz,
                 charHeight = CodePage437.CharSz,
+                cursorChar = 0xdb,
             },
 
             new FontInfo {
@@ -362,6 +359,8 @@ public static void SetFontTexture() {
                 numRows    = AppleFont.APPLEIIF_ROWS,
                 charWidth  = AppleFont.APPLEIIF_CW + 1,
                 charHeight = AppleFont.APPLEIIF_CH + 2,
+                cursorChar = 127,
+                outlined = true,
             },
         };
         _currentFontInfo = _allFonts[_currentFont];
@@ -732,22 +731,22 @@ public static void SetContext( Camera camera, float pixelsPerPoint = 1, bool inv
 }
 
 public static void Begin() {
-    //var tex = AppleFont.GetTextureWithOutline();
-    //var tex = AppleFont.GetTexture();
-
-    var tex = _currentFontInfo.tex ? _currentFontInfo.tex : Texture2D.whiteTexture;
-
-    LateBlit( null, 0, 0, tex.width * 3, tex.height * 3, color: Color.magenta );
-    LateBlit( tex, 0, 0, tex.width  * 3, tex.height * 3 );
-
-    LatePrint( "qonsole is running", Screen.width - 100, QGL.ScreenHeight - 100 );
+    if ( ShowFontTexture_cvar > 0 ) {
+        var tex = _currentFontInfo.tex ? _currentFontInfo.tex : Texture2D.whiteTexture;
+        LateBlit( null, 0, 0, tex.width * ShowFontTexture_cvar, tex.height * ShowFontTexture_cvar,
+                                                                            color: Color.magenta );
+        LateBlit( tex, 0, 0, tex.width  * ShowFontTexture_cvar, tex.height * ShowFontTexture_cvar );
+    }
 
     GL.PushMatrix();
     GL.LoadPixelMatrix();
+
     Camera cam = _camera ? _camera : Camera.main;
     if ( cam ) {
+        ScreenWidth = cam.pixelWidth;
         ScreenHeight = cam.pixelHeight;
     } else {
+        ScreenWidth = Screen.width;
         ScreenHeight = Screen.height;
     }
 }
