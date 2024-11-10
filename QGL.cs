@@ -110,11 +110,23 @@ static void DrawText( string s, float x, float y ) {
     }
 }
 
-static int _font => _fonts == null ? 0 : Font_cvar % _fonts.Length;
-static int _fontNumColumns => _font == 0 ? AppleFont.APPLEIIF_CLMS : CodePage437.FontSz;
-static int _fontNumRows    => _font == 0 ? AppleFont.APPLEIIF_ROWS : CodePage437.FontSz;
-static int _fontCharWidth  => _font == 0 ? AppleFont.APPLEIIF_CW   : CodePage437.CharSz;
-static int _fontCharHeight => _font == 0 ? AppleFont.APPLEIIF_CH   : CodePage437.CharSz;
+class FontInfo {
+    public Texture2D tex;
+    public int numColumns;
+    public int numRows;
+    public int charWidth;
+    public int charHeight;
+}
+
+static int _currentFont => _allFonts == null ? 0 : Font_cvar % _allFonts.Length;
+
+static int _fontNumColumns => _currentFontInfo.numColumns;
+static int _fontNumRows    => _currentFontInfo.numRows;
+static int _fontCharWidth  => _currentFontInfo.charWidth;
+static int _fontCharHeight => _currentFontInfo.charHeight;
+
+static FontInfo _currentFontInfo = new FontInfo();
+static FontInfo [] _allFonts;
 
 // == Public API ==
 
@@ -140,7 +152,7 @@ public static Color TagToCol( string tag ) {
 }
 
 public static int GetCursorChar() {
-    return _font == 0 ? 127 : 0xdb;
+    return _currentFont == 0 ? 127 : 0xdb;
 }
 
 public static float ScreenWidth() {
@@ -304,38 +316,58 @@ public static void DrawTextWithOutline( string s, float x, float y, Color color,
 public static void DrawScreenCharWithOutline( int c, float screenX, float screenY, Color color,
                                                                                 float scale = 1 ) { 
     // == outline ==
-    Vector3 [] outline = new Vector3 [] {
-        new Vector3( scale, 0 ),
-        new Vector3( 0, scale ),
-        new Vector3( scale, scale ),
-        new Vector3( -scale, scale ),
-    };
+    //GL.Color( new Color( 0, 0, 0, 1 * ( color.a * color.a * color.a ) ) );
+    //DrawScreenChar( c, screenX + scale, screenY +     0, scale );
+    //DrawScreenChar( c, screenX + scale, screenY + scale, scale );
+    //DrawScreenChar( c, screenX +     0, screenY + scale, scale );
 
-    GL.Color( new Color( 0, 0, 0, 1 * ( color.a * color.a * color.a ) ) );
-    for ( int i = 0; i < outline.Length; i++ ) {
-        DrawScreenChar( c, screenX + outline[i].x, screenY + outline[i].y, scale );
-        DrawScreenChar( c, screenX - outline[i].x, screenY - outline[i].y, scale );
-    }
+    //DrawScreenChar( c, screenX - scale, screenY -     0, scale );
+    //DrawScreenChar( c, screenX - scale, screenY - scale, scale );
+    //DrawScreenChar( c, screenX -     0, screenY - scale, scale );
+
+    //DrawScreenChar( c, screenX + scale, screenY - scale, scale );
+    //DrawScreenChar( c, screenX - scale, screenY + scale, scale );
 
     // == actual character ==
     GL.Color( color );
     DrawScreenChar( c, screenX, screenY, scale );
 }
 
-static Texture2D _texFont;
-static Texture2D [] _fonts;
-
 public static void SetFontTexture() {
+
     // make sure we work when going back to edit mode
-    _texFont = _fonts == null ? null : _fonts[_font];
-    if ( ! _texFont ) {
-        _fonts = new Texture2D [] {
-            AppleFont.GetTexture(),
-            CodePage437.GetTexture(),
+    _currentFontInfo = _allFonts == null ? null : _allFonts[_currentFont];
+
+    if ( _currentFontInfo == null ) {
+        _allFonts = new FontInfo [] {
+            new FontInfo {
+                tex        = AppleFont.GetTexture(),
+                numColumns = AppleFont.APPLEIIF_CLMS,
+                numRows    = AppleFont.APPLEIIF_ROWS,
+                charWidth  = AppleFont.APPLEIIF_CW,
+                charHeight = AppleFont.APPLEIIF_CH,
+            },
+
+            new FontInfo {
+                tex        = CodePage437.GetTexture(),
+                numColumns = CodePage437.FontSz,
+                numRows    = CodePage437.FontSz,
+                charWidth  = CodePage437.CharSz,
+                charHeight = CodePage437.CharSz,
+            },
+
+            new FontInfo {
+                tex        = AppleFont.GetTextureWithOutline(),
+                numColumns = AppleFont.APPLEIIF_CLMS,
+                numRows    = AppleFont.APPLEIIF_ROWS,
+                charWidth  = AppleFont.APPLEIIF_CW + 1,
+                charHeight = AppleFont.APPLEIIF_CH + 2,
+            },
         };
-        _texFont = _fonts[_font];
+        _currentFontInfo = _allFonts[_currentFont];
     }
-    SetTexture( _texFont );
+
+    SetTexture( _currentFontInfo.tex );
 }
 
 public static void SetWhiteTexture() {
@@ -389,22 +421,24 @@ struct CharInfo {
 }
 static Dictionary<int,CharInfo> _charsMap = new Dictionary<int,CharInfo>();
 public static void DrawScreenChar( int c, float screenX, float screenY, float scale ) { 
-    int hash = ( ( _invertedY ? 1 : 0 ) << 16 ) | ( _font << 8 ) | ( c & 255 );
+    int hash = ( ( _invertedY ? 1 : 0 ) << 16 ) | ( _currentFont << 8 ) | ( c & 255 );
     if ( ! _charsMap.TryGetValue( hash, out CharInfo ci ) ) {
+        Texture2D texFont = _currentFontInfo.tex;
+
         int idx = c % ( _fontNumColumns * _fontNumRows );
 
-        float tw = ( float )_fontCharWidth / _texFont.width;
-        float th = ( float )_fontCharHeight / _texFont.height;
-        Vector3 uvOff = new Vector3( ( idx % _fontNumColumns ) * tw, ( idx / _fontNumColumns ) * th );
+        float charU = ( float )( _fontCharWidth ) / texFont.width;
+        float charV = ( float )( _fontCharHeight ) / texFont.height;
 
-        float charU = ( float )_texFont.width / _fontNumColumns / _texFont.width;
-        float charV = ( float )_texFont.height / _fontNumRows / _texFont.height;
         ci.uv = new Vector3[4] {
             new Vector3( 0, 0, 0 ),
             new Vector3( charU, 0, 0 ),
             new Vector3( charU, charV, 0 ),
             new Vector3( 0, charV, 0 ),
         };
+
+        Vector3 uvOff = new Vector3( ( idx % _fontNumColumns ) * charU,
+                                        ( idx / _fontNumColumns ) * charV );
 
         for ( int i = 0; i < 4; i++ ) {
             ci.uv[i] += uvOff;
@@ -698,6 +732,16 @@ public static void SetContext( Camera camera, float pixelsPerPoint = 1, bool inv
 }
 
 public static void Begin() {
+    //var tex = AppleFont.GetTextureWithOutline();
+    //var tex = AppleFont.GetTexture();
+
+    var tex = _currentFontInfo.tex ? _currentFontInfo.tex : Texture2D.whiteTexture;
+
+    LateBlit( null, 0, 0, tex.width * 3, tex.height * 3, color: Color.magenta );
+    LateBlit( tex, 0, 0, tex.width  * 3, tex.height * 3 );
+
+    LatePrint( "qonsole is running", Screen.width - 100, QGL.ScreenHeight - 100 );
+
     GL.PushMatrix();
     GL.LoadPixelMatrix();
     Camera cam = _camera ? _camera : Camera.main;
