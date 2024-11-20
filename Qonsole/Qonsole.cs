@@ -457,7 +457,7 @@ public static void RenderGL( bool skip = false ) {
 
     QGL.Begin();
 
-    // lates come first
+    // lates come first, the console on top
     QGL.FlushLates();
 
     if ( ! skip ) {

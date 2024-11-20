@@ -14,20 +14,6 @@ using UnityEngine;
 
 public static class QGL {
 
-public static Action<object> Log = o => {};
-public static Action<string> Error = s => {};
-
-public static float ScreenHeight { get; private set; }
-public static float ScreenWidth { get; private set; }
-public static int CursorChar => _currentFontInfo.cursorChar;
-
-static Texture2D _texWhite = Texture2D.whiteTexture;
-static Material _material;
-
-static int _context;
-static Camera _camera;
-static bool _invertedY;
-
 class Late {
     public int context;
     public Color32 color;
@@ -61,57 +47,6 @@ class LateImage : Late {
     public Material material;
 }
 
-// these are postponed and drawn after all geometry in scene
-static List<Late> _lates = new List<Late>();
-
-static void ImageQuad( int texW, int texH, Vector2 srcPos, Vector2 srcSize,
-                            Vector2 dstPos, Vector2 dstSize, Vector2 dir, Color color ) { 
-    float y = _invertedY ? ScreenHeight - dstPos.y : dstPos.y;
-    float tw = texW > 0 ? texW : 1;
-    float th = texH > 0 ? texH : 1;
-    float u0 = srcPos.x / tw;
-    float u1 = u0 + srcSize.x / tw;
-    float v0 = srcPos.y / th;
-    float v1 = v0 + srcSize.y / th;
-
-    GL.Color( color );
-    if ( dir.x != float.MaxValue && dir.y != float.MaxValue ) {
-        Vector2 pos = new Vector2( dstPos.x, y );
-        float dy = _invertedY ? -dstSize.y : +dstSize.y;
-        Vector2 rv = new Vector2( dstSize.x, dy );
-        Vector3 rotate( float rx, float ry ) {
-            rx *= rv.x * 0.5f;
-            ry *= rv.y * 0.5f;
-            return new Vector3( pos.x + rx * dir.x - ry * dir.y,
-                                                            pos.y + rx * dir.y + ry * dir.x, 0 );
-        }
-        GL.TexCoord( new Vector3( u0, v0, 0 ) );
-        GL.Vertex( rotate( -1, -1 ) );
-        GL.TexCoord( new Vector3( u1, v0, 0 ) );
-        GL.Vertex( rotate( 1, -1 ) );
-        GL.TexCoord( new Vector3( u1, v1, 0 ) );
-        GL.Vertex( rotate( 1, 1 ) );
-        GL.TexCoord( new Vector3( u0, v1, 0 ) );
-        GL.Vertex( rotate( -1, 1 ) );
-    } else {
-        float dy = _invertedY ? y - dstSize.y : y + dstSize.y;
-        GL.TexCoord( new Vector3( u0, v0, 0 ) );
-        GL.Vertex( new Vector3( dstPos.x, y, 0 ) );
-        GL.TexCoord( new Vector3( u1, v0, 0 ) );
-        GL.Vertex( new Vector3( dstPos.x + dstSize.x, y, 0 ) );
-        GL.TexCoord( new Vector3( u1, v1, 0 ) );
-        GL.Vertex( new Vector3( dstPos.x + dstSize.x, dy, 0 ) );
-        GL.TexCoord( new Vector3( u0, v1, 0 ) );
-        GL.Vertex( new Vector3( dstPos.x, dy, 0 ) );
-    }
-}
-
-static void DrawText( string s, float x, float y ) {
-    for ( int i = 0; i < s.Length; i++ ) {
-        DrawScreenChar( s[i], x + i * TextDx, y, 1 );
-    }
-}
-
 class FontInfo {
     public Texture2D tex;
     public int numColumns;
@@ -122,27 +57,45 @@ class FontInfo {
     public bool outlined;
 }
 
-static int _currentFont => _allFonts == null ? 0 : Font_cvar % _allFonts.Length;
+struct CharInfo {
+    public Vector3 [] uv;
+    public Vector3 [] verts;
+}
 
-static int _fontNumColumns => _currentFontInfo.numColumns;
-static int _fontNumRows    => _currentFontInfo.numRows;
-static int _fontCharWidth  => _currentFontInfo.charWidth;
-static int _fontCharHeight => _currentFontInfo.charHeight;
-
-static FontInfo _currentFontInfo = new FontInfo();
-static FontInfo [] _allFonts;
-
-// == Public API ==
+public static float ScreenWidth { get; private set; }
+public static Action<object> Log = o => {};
+public static Action<string> Error = s => {};
+public static float ScreenHeight { get; private set; }
+public static float pixelsPerPoint = 1;
+public static int CursorChar => _currentFontInfo.cursorChar;
+public static float TextDx => Mathf.Max( AppleFont.APPLEIIF_CW + 1, _fontCharWidth + CharSpacingX_cvar );
+public static float TextDy => _fontCharHeight + CharSpacingY_cvar;
 
 static int CharSpacingX_cvar = -3;
 static int CharSpacingY_cvar = 3;
 static int Font_cvar = 0;
 static int ShowFontTexture_cvar = 0;
 
-public static float pixelsPerPoint = 1;
-
-public static float TextDx => Mathf.Max( AppleFont.APPLEIIF_CW + 1, _fontCharWidth + CharSpacingX_cvar );
-public static float TextDy => _fontCharHeight + CharSpacingY_cvar;
+static Camera _camera;
+// used with Cellophane color tags
+static List<Color> _colStack = new List<Color>();
+// these are postponed and drawn after all geometry in scene
+static List<Late> _lates = new List<Late>();
+static Material _material;
+static Texture _mainTex;
+static Texture2D _texWhite = Texture2D.whiteTexture;
+static Vector2 [] _lineRect = new Vector2[4];
+static bool _flushed;
+static bool _invertedY;
+static int _context;
+static FontInfo [] _allFonts;
+static FontInfo _currentFontInfo = new FontInfo();
+static int _currentFont => _allFonts == null ? 0 : Font_cvar % _allFonts.Length;
+static int _fontCharHeight => _currentFontInfo.charHeight;
+static int _fontCharWidth  => _currentFontInfo.charWidth;
+static int _fontNumColumns => _currentFontInfo.numColumns;
+static int _fontNumRows    => _currentFontInfo.numRows;
+static Dictionary<int,CharInfo> _charsMap = new Dictionary<int,CharInfo>();
 
 public static Color TagToCol( string tag ) {
     int [] rgb = new int[3 * 2];
@@ -159,6 +112,7 @@ public static Color TagToCol( string tag ) {
 public static bool Start( bool invertedY = false ) {
     Shader shader = Shader.Find( "GLSprites" );
     if ( ! shader ) {
+        // no color on sprites with this one
         shader = Shader.Find( "GUI/Text Shader" );
     }
     if ( shader ) {
@@ -241,7 +195,6 @@ public static void DrawTextNokia( string s, float x, float y, Color color, float
             g.height,
         };
 
-
         Vector3 uvOff = new Vector3( src[0] / NokiaFont.NOKIA_IMG_W,
                                         src[1] / NokiaFont.NOKIA_IMG_H );
         float charU = src[2] / NokiaFont.NOKIA_IMG_W;
@@ -277,7 +230,6 @@ public static void DrawTextNokia( string s, float x, float y, Color color, float
     }
 }
 
-static List<Color> _colStack = new List<Color>();
 public static void DrawTextWithOutline( string s, float x, float y, Color color, float scale = 1 ) {
     for ( int i = 0, j = 0; ; i++ ) {
         while ( i < s.Length ) {
@@ -377,7 +329,6 @@ public static void SetMaterialColor( Color color ) {
     _material.color = color;
 }
 
-static Texture _mainTex;
 public static void SetTexture( Texture tex ) {
     if (_mainTex == tex)
         return;
@@ -414,11 +365,6 @@ public static void DrawSolidQuad( Vector2 pos, Vector2 size ) {
     GL.Vertex( new Vector3( pos.x, dy, 0 ) );
 }
 
-struct CharInfo {
-    public Vector3 [] uv;
-    public Vector3 [] verts;
-}
-static Dictionary<int,CharInfo> _charsMap = new Dictionary<int,CharInfo>();
 public static void DrawScreenChar( int c, float screenX, float screenY, float scale ) { 
     int hash = ( ( _invertedY ? 1 : 0 ) << 16 ) | ( _currentFont << 8 ) | ( c & 255 );
     if ( ! _charsMap.TryGetValue( hash, out CharInfo ci ) ) {
@@ -491,33 +437,6 @@ public static void LatePrint( object o, float x, float y, Color? color = null, f
     LatePrint( o.ToString(), x, y, color, scale );
 }
 
-static void AddCenteredText( string str, Vector2 sz, float x, float y, Color? color = null,
-                                                                                float scale = 1 ) {
-    var txt = new LateText {
-        context = _context,
-        x = Mathf.Round( x - ( int )sz.x / 2 ),
-        y = Mathf.Round( y - ( int )sz.y / 2 ),
-        scale = scale,
-        str = str,
-        color = color == null ? Color.green : color.Value,
-    };
-
-    _lates.Add( txt );
-}
-
-static void AddText( string str, float x, float y, Color? color = null, float scale = 1 ) {
-    var txt = new LateText {
-        context = _context,
-        x = ( int )x,
-        y = ( int )y,
-        scale = scale,
-        str = str,
-        color = color == null ? Color.green : color.Value,
-    };
-
-    _lates.Add( txt );
-}
-
 public static void LatePrint( string str, float x, float y, Color? color = null, float scale = 1 ) {
     Vector2 sz = MeasureString( str, scale );
     AddCenteredText( str, sz, x, y, color, scale );
@@ -543,6 +462,9 @@ public static void LatePrintNokia( string str, Vector2Int xy, Color? color = nul
 
 public static void LatePrintNokia( string str, float x, float y, Color? color = null,
                                                                                 float scale = 1 ) {
+    if ( ! _flushed )
+        return;
+
     Vector2 sz = MeasureStringNokia( str, scale );
 
     var txt = new LateTextNokia {
@@ -559,6 +481,9 @@ public static void LatePrintNokia( string str, float x, float y, Color? color = 
 
 public static void LatePrintNokia_tl( string str, float x, float y, Color? color = null,
                                                                                 float scale = 1 ) {
+    if ( ! _flushed )
+        return;
+
     var txt = new LateTextNokia {
         context = _context,
         x = ( int )x,
@@ -623,6 +548,9 @@ public static void LateBlitComplete( Texture tex, float x, float y,
                                             float sx = 0, float sy = 0, float sw = 0, float sh = 0,
                                             float ox = float.MaxValue, float oy = float.MaxValue,
                                             Color? color = null, Material mat = null ) {
+    if ( ! _flushed )
+        return;
+
     tex = tex != null ? tex : _texWhite;
     var img = new LateImage {
         context = _context,
@@ -682,7 +610,6 @@ public static void LateDrawLineLoop( IList<Vector2> line, Color? color = null ) 
     LateDrawLine( loop, color );
 }
 
-private static Vector2 [] _lineRect = new Vector2[4];
 public static void LateDrawLineRect( float x, float y, float w, float h, Color? color = null ) {
     _lineRect[0] = new Vector2( x, y );
     _lineRect[1] = new Vector2( x + w, y );
@@ -692,6 +619,9 @@ public static void LateDrawLineRect( float x, float y, float w, float h, Color? 
 }
 
 public static void LateDrawLine( IList<Vector2> line, Color? color = null ) {
+    if ( ! _flushed )
+        return;
+
     var l = new List<Vector2>( line );
     for ( int i = 0; i < l.Count; i++ ) {
         float y = _invertedY ? ScreenHeight - l[i].y : l[i].y;
@@ -723,6 +653,7 @@ public static Vector2 WorldToScreenPos( Vector3 worldPos ) {
     return Vector2.zero;
 }
 
+// Lates after this call will be marked 'of this context'
 public static void SetContext( Camera camera, float pixelsPerPoint = 1, bool invertedY = false ) {
     _context = camera ? camera.GetHashCode() : 0;
     _camera = camera;
@@ -859,8 +790,91 @@ public static void FlushLates() {
             _lates.RemoveAt( li );
         }
     }
+
+    _flushed = _lates.Count == 0;
 }
 
+static void AddCenteredText( string str, Vector2 sz, float x, float y, Color? color = null,
+                                                                                float scale = 1 ) {
+    if ( ! _flushed ) {
+        return;
+    }
+
+    var txt = new LateText {
+        context = _context,
+        x = Mathf.Round( x - ( int )sz.x / 2 ),
+        y = Mathf.Round( y - ( int )sz.y / 2 ),
+        scale = scale,
+        str = str,
+        color = color == null ? Color.green : color.Value,
+    };
+
+    _lates.Add( txt );
+}
+
+static void AddText( string str, float x, float y, Color? color = null, float scale = 1 ) {
+    if ( ! _flushed )
+        return;
+
+    var txt = new LateText {
+        context = _context,
+        x = ( int )x,
+        y = ( int )y,
+        scale = scale,
+        str = str,
+        color = color == null ? Color.green : color.Value,
+    };
+
+    _lates.Add( txt );
+}
+
+static void ImageQuad( int texW, int texH, Vector2 srcPos, Vector2 srcSize,
+                            Vector2 dstPos, Vector2 dstSize, Vector2 dir, Color color ) { 
+    float y = _invertedY ? ScreenHeight - dstPos.y : dstPos.y;
+    float tw = texW > 0 ? texW : 1;
+    float th = texH > 0 ? texH : 1;
+    float u0 = srcPos.x / tw;
+    float u1 = u0 + srcSize.x / tw;
+    float v0 = srcPos.y / th;
+    float v1 = v0 + srcSize.y / th;
+
+    GL.Color( color );
+    if ( dir.x != float.MaxValue && dir.y != float.MaxValue ) {
+        Vector2 pos = new Vector2( dstPos.x, y );
+        float dy = _invertedY ? -dstSize.y : +dstSize.y;
+        Vector2 rv = new Vector2( dstSize.x, dy );
+        Vector3 rotate( float rx, float ry ) {
+            rx *= rv.x * 0.5f;
+            ry *= rv.y * 0.5f;
+            return new Vector3( pos.x + rx * dir.x - ry * dir.y,
+                                                            pos.y + rx * dir.y + ry * dir.x, 0 );
+        }
+        GL.TexCoord( new Vector3( u0, v0, 0 ) );
+        GL.Vertex( rotate( -1, -1 ) );
+        GL.TexCoord( new Vector3( u1, v0, 0 ) );
+        GL.Vertex( rotate( 1, -1 ) );
+        GL.TexCoord( new Vector3( u1, v1, 0 ) );
+        GL.Vertex( rotate( 1, 1 ) );
+        GL.TexCoord( new Vector3( u0, v1, 0 ) );
+        GL.Vertex( rotate( -1, 1 ) );
+    } else {
+        float dy = _invertedY ? y - dstSize.y : y + dstSize.y;
+        GL.TexCoord( new Vector3( u0, v0, 0 ) );
+        GL.Vertex( new Vector3( dstPos.x, y, 0 ) );
+        GL.TexCoord( new Vector3( u1, v0, 0 ) );
+        GL.Vertex( new Vector3( dstPos.x + dstSize.x, y, 0 ) );
+        GL.TexCoord( new Vector3( u1, v1, 0 ) );
+        GL.Vertex( new Vector3( dstPos.x + dstSize.x, dy, 0 ) );
+        GL.TexCoord( new Vector3( u0, v1, 0 ) );
+        GL.Vertex( new Vector3( dstPos.x, dy, 0 ) );
+    }
+}
+
+static void DrawText( string s, float x, float y ) {
+    for ( int i = 0; i < s.Length; i++ ) {
+        DrawScreenChar( s[i], x + i * TextDx, y, 1 );
+    }
+}
 
 }
 
